@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Local configuration and secrets
+.env
+.env.local
+
+# Logs and runtime files
+logs/
+*.log
+*.pid
+.DS_Store
+
+# Local models and large binaries
+models/
+*.gguf
+*.bin
+*.safetensors
+
+# Generated vector stores and API caches
+data/chroma_db/
+data/cache/
+*.sqlite3
+
+# Generated outputs
+exports/
+downloads/
+tmp/
+temp/
+
+# Streamlit
+.streamlit/secrets.toml

@@ -1,0 +1,271 @@
+[
+  {
+    "question": "地震时在高楼怎么办？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["电梯", "严禁乘坐电梯", "不乘电梯", "切勿使用电梯"],
+      ["护住", "保护头部", "保护头颈"],
+      ["避险", "躲避", "蹲下", "三角安全区"]
+    ]
+  },
+  {
+    "question": "地震发生时在家里应该怎么做？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["保护头部", "护住头颈", "护住头部", "枕头"],
+      ["远离玻璃", "远离窗户", "避开窗户", "避开玻璃"],
+      ["不要乘坐电梯", "不乘电梯", "严禁使用电梯", "电梯"]
+    ],
+    "bonus_keywords": ["火源", "燃气", "电源", "关闭", "撤离"]
+  },
+  {
+    "question": "地震时在室外应该注意什么？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["空旷", "开阔", "广场", "操场"],
+      ["远离", "避开"],
+      ["建筑物", "楼房", "围墙", "建筑"]
+    ]
+  },
+  {
+    "question": "地震后可以马上回家吗？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["余震"],
+      ["安全", "确认安全"],
+      ["检查", "排查", "评估"]
+    ]
+  },
+  {
+    "question": "学校发生地震时学生应该怎么避险？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["保护头部", "护住头部", "护住头颈"],
+      ["指挥", "老师", "教师"],
+      ["撤离", "疏散", "有序"]
+    ]
+  },
+  {
+    "question": "最近中国附近有没有地震？",
+    "expected_source_type": "realtime",
+    "must_include_any_group": [
+      ["时间", "日", "年"],
+      ["地点", "位置", "震中", "区域", "地区", "附近", "新疆", "中国", "缅甸", "东太平洋", "海岭"],
+      ["震级", "级"]
+    ]
+  },
+  {
+    "question": "最近有什么地震？",
+    "expected_source_type": "realtime",
+    "must_include_any_group": [
+      ["时间", "日", "年"],
+      ["地点", "位置", "震中", "区域", "地区", "附近", "新疆", "中国", "缅甸", "东太平洋", "海岭"],
+      ["震级", "级"]
+    ]
+  },
+  {
+    "question": "近期有没有 4 级以上地震？",
+    "expected_source_type": "realtime",
+    "must_include_any_group": [
+      ["震级", "级"],
+      ["地点", "位置", "震中", "区域", "地区", "附近", "新疆", "中国", "缅甸", "东太平洋", "海岭"],
+      ["来源", "CENC", "USGS", "GDACS"]
+    ]
+  },
+  {
+    "question": "最近全球有什么较强地震？",
+    "expected_source_type": "realtime",
+    "must_include_any_group": [
+      ["震级", "级"],
+      ["地点", "位置", "震中", "区域", "地区", "附近", "新疆", "中国", "缅甸", "东太平洋", "海岭"],
+      ["时间", "日"]
+    ]
+  },
+  {
+    "question": "中国地震台网最近记录了哪些地震？",
+    "expected_source_type": "realtime",
+    "must_include_any_group": [
+      ["CENC", "中国地震台网"],
+      ["震级", "级"],
+      ["地点", "位置", "震中", "区域", "地区", "附近", "新疆", "中国", "缅甸", "东太平洋", "海岭"]
+    ]
+  },
+  {
+    "question": "洪水来了往哪个方向跑？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["高处", "高地", "地势高"],
+      ["远离", "避开"],
+      ["低洼", "沟谷", "山谷", "河道", "下游", "高处", "高地"]
+    ]
+  },
+  {
+    "question": "暴雨洪水时能不能开车穿过积水路段？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["积水", "涉水"],
+      ["绕行", "不要", "禁止", "绕道", "严禁", "切勿", "不要强行", "不可强行"]
+    ]
+  },
+  {
+    "question": "山洪来临前有哪些征兆？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["水位", "涨水", "水流异常", "水流突然增大", "突然增大", "突然减小", "断流"],
+      ["浑浊", "变浑", "泥沙", "异响", "轰隆", "上游突然传来异响"]
+    ]
+  },
+  {
+    "question": "遇到泥石流应该往哪里跑？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["两侧", "横向", "侧向"],
+      ["垂直", "方向"],
+      ["沟谷", "泥石流沟", "山谷", "山谷出口", "两侧山坡", "垂直", "横向"]
+    ]
+  },
+  {
+    "question": "滑坡发生时应该怎么办？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["两侧", "横向", "侧向"],
+      ["迅速", "快速", "立刻", "立即"],
+      ["撤离", "逃生", "转移"]
+    ]
+  },
+  {
+    "question": "国家自然灾害救助应急响应有几个等级？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["响应", "应急响应"],
+      ["等级", "级", "级别"],
+      ["救助", "救灾"]
+    ]
+  },
+  {
+    "question": "灾害发生后政府救助通常包括哪些内容？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["生活救助", "生活保障", "生活"],
+      ["转移安置", "安置", "安置点"],
+      ["物资", "供应", "救灾物资"]
+    ]
+  },
+  {
+    "question": "地震预警响了以后应该怎么做？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["避险", "躲避", "避震"],
+      ["护住", "保护头部", "保护头颈"],
+      ["电梯", "严禁乘坐电梯", "不乘电梯"]
+    ]
+  },
+  {
+    "question": "震后如何检查燃气和用电安全？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["燃气", "煤气"],
+      ["电源", "用电", "电器"],
+      ["明火", "火源", "火花"]
+    ]
+  },
+  {
+    "question": "洪水后回家需要注意什么卫生安全？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["消毒", "杀菌"],
+      ["饮水", "饮用水", "水源"],
+      ["食品", "食物"]
+    ]
+  },
+  {
+    "question": "当前有哪些洪水或气旋预警？",
+    "expected_source_type": "realtime",
+    "must_include_any_group": [
+      ["GDACS", "预警系统", "实时灾害数据", "全球灾害预警", "灾害预警", "当前未检索到"],
+      ["预警", "警报"],
+      ["地点", "位置", "地区"]
+    ]
+  },
+  {
+    "question": "最近有没有高风险灾害事件？",
+    "expected_source_type": "realtime",
+    "must_include_any_group": [
+      ["风险", "等级"],
+      ["High", "高"],
+      ["Critical", "严重"]
+    ]
+  },
+  {
+    "question": "请列出最近灾害事件的来源。",
+    "expected_source_type": "realtime",
+    "must_include_any_group": [
+      ["CENC", "中国地震台网"],
+      ["USGS", "美国地质调查局"],
+      ["GDACS", "全球灾害预警系统"]
+    ]
+  },
+  {
+    "question": "地震时如果被困应该怎么办？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["保存体力", "节约体力", "节省体力"],
+      ["求救", "呼救", "求助"],
+      ["保护", "护住"]
+    ]
+  },
+  {
+    "question": "在商场遇到地震应该怎么避险？",
+    "expected_source_type": "document",
+    "must_include_any_group": [
+      ["避开", "远离"],
+      ["玻璃", "橱窗", "货架"],
+      ["有序", "不要慌乱", "冷静"]
+    ]
+  },
+  {
+    "question": "台风来临前应该准备什么？",
+    "expected_source_type": "general",
+    "must_include_any_group": [
+      ["加固", "固定"],
+      ["物资", "储备", "准备"],
+      ["避免外出", "减少外出", "不要外出"]
+    ]
+  },
+  {
+    "question": "火山喷发附近居民应该注意什么？",
+    "expected_source_type": "general",
+    "must_include_any_group": [
+      ["撤离", "远离", "疏散"],
+      ["口罩", "防护", "遮掩"],
+      ["官方", "政府", "通知"]
+    ]
+  },
+  {
+    "question": "野火烟雾影响时怎么保护自己？",
+    "expected_source_type": "general",
+    "must_include_any_group": [
+      ["室内", "待在室内"],
+      ["口罩", "防护"],
+      ["空气", "通风", "关闭门窗"]
+    ]
+  },
+  {
+    "question": "干旱期间家庭节水有哪些建议？",
+    "expected_source_type": "general",
+    "must_include_any_group": [
+      ["节水", "节约用水"],
+      ["储水", "蓄水"],
+      ["用水", "水"]
+    ]
+  },
+  {
+    "question": "如果没有检索到资料，你应该怎么回答灾害实时事实问题？",
+    "expected_source_type": "general",
+    "must_include_any_group": [
+      ["无法确认", "无法", "不能确定"],
+      ["刷新实时数据", "权威", "官方"],
+      ["核实", "查询"]
+    ]
+  }
+]
