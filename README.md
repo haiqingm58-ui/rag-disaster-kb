@@ -11,6 +11,7 @@
 - 文档管理：支持上传 PDF、TXT、MD，切片后写入 ChromaDB。
 - 实时事件同步：地图刷新后可同步实时事件到向量库，避免问答与地图数据割裂。
 - 导出能力：支持导出问答 Markdown、检索来源 Markdown、附近灾害 CSV、地图事件 CSV 和灾害简报 Markdown。
+- 生成统计：显示生成耗时、输入/输出 Token、总 Token、输出速度、Max Tokens、LLM 地址和 Token 来源。
 - 规则评测：支持 `must_include`、`must_include_any`、`must_include_any_group`，适配中文同义表达，减少评测误判。
 
 ## 技术架构

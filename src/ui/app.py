@@ -251,6 +251,12 @@ def _render_usage_expander(usage: dict | None) -> None:
             st.metric("输出速度", f"{tps:.1f} tok/s" if tps else "N/A")
             st.metric("Max Tokens", str(usage.get("max_tokens", "?")))
             st.metric("LLM 地址", usage.get("llm_base_url", "?"))
+            source_label = {
+                "api": "LLM 接口返回",
+                "llama_tokenize": "llama.cpp /tokenize",
+                "estimated": "本地粗略估算",
+            }.get(usage.get("usage_source"), "N/A")
+            st.metric("Token 来源", source_label)
 
         has_token_data = (
             usage.get("prompt_tokens") is not None
@@ -258,6 +264,8 @@ def _render_usage_expander(usage: dict | None) -> None:
         )
         if not has_token_data:
             st.info("当前 LLM 接口未返回 token usage，仅显示生成耗时。")
+        elif usage.get("usage_estimated"):
+            st.caption("Token 为本地估算值，仅用于判断大致耗时来源。")
 
 
 def _fmt_tok(val) -> str:
