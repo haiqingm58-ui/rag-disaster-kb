@@ -9,9 +9,10 @@ from langchain_core.embeddings import Embeddings
 
 from config import (
     CHROMA_DIR,
-    EMBEDDING_BACKEND,
+    EMBEDDING_PROVIDER,
     EMBEDDING_MODEL,
-    LOCAL_EMBEDDING_MODEL,
+    OLLAMA_BASE_URL,
+    OLLAMA_EMBED_MODEL,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     COLLECTION_DOCS,
@@ -27,14 +28,17 @@ def _get_embeddings() -> Embeddings:
     if _embeddings is not None:
         return _embeddings
 
-    if EMBEDDING_BACKEND == "openai":
+    if EMBEDDING_PROVIDER == "openai":
         _embeddings = OpenAIEmbeddings(
             model=EMBEDDING_MODEL,
             api_key=OPENAI_API_KEY,
             base_url=OPENAI_BASE_URL,
         )
     else:
-        _embeddings = OllamaEmbeddings(model=LOCAL_EMBEDDING_MODEL)
+        _embeddings = OllamaEmbeddings(
+            model=OLLAMA_EMBED_MODEL,
+            base_url=OLLAMA_BASE_URL,
+        )
 
     return _embeddings
 

@@ -14,19 +14,54 @@ CHROMA_DIR = DATA_DIR / "chroma_db"
 COLLECTION_DOCS = "local_docs"
 COLLECTION_EVENTS = "disaster_events"
 
-# Embedding — use "openai" or "local"
-EMBEDDING_BACKEND = os.getenv("EMBEDDING_BACKEND", "local")
+# Embedding — default remains local Ollama, while preserving legacy names.
+EMBEDDING_PROVIDER = os.getenv(
+    "EMBEDDING_PROVIDER",
+    "ollama" if os.getenv("EMBEDDING_BACKEND", "local") == "local" else os.getenv("EMBEDDING_BACKEND", "ollama"),
+).lower()
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"))
+OLLAMA_EMBED_MODEL = os.getenv(
+    "OLLAMA_EMBED_MODEL",
+    os.getenv("LOCAL_EMBEDDING_MODEL", "nomic-embed-text:v1.5"),
+)
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-LOCAL_EMBEDDING_MODEL = os.getenv("LOCAL_EMBEDDING_MODEL", "nomic-embed-text:v1.5")
 
-# LLM
-LLM_MODEL = os.getenv("LLM_MODEL", "Qwen_Qwen3.5-9B-Q4_K_M.gguf")
-LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+# Backward-compatible aliases used by older modules/scripts.
+EMBEDDING_BACKEND = "local" if EMBEDDING_PROVIDER == "ollama" else EMBEDDING_PROVIDER
+LOCAL_EMBEDDING_MODEL = OLLAMA_EMBED_MODEL
 
-# API settings
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-placeholder")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:8080/v1")
+# LLM provider
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek").lower()
+
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:8080/v1"))
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", os.getenv("LLM_MODEL", "qwen-local"))
+LOCAL_LLM_MODEL_PATH = os.getenv("LOCAL_LLM_MODEL_PATH", os.getenv("QWEN_MODEL_PATH", ""))
+
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "512"))
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+
+# Backward-compatible aliases. New LLM code uses provider-specific values.
+LLM_MODEL = DEEPSEEK_MODEL if LLM_PROVIDER == "deepseek" else LOCAL_LLM_MODEL
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", DEEPSEEK_API_KEY if LLM_PROVIDER == "deepseek" else "not-needed")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", DEEPSEEK_BASE_URL if LLM_PROVIDER == "deepseek" else LOCAL_LLM_BASE_URL)
+
+
+def validate_llm_config() -> None:
+    """Raise a friendly error for unsupported or incomplete LLM configuration."""
+    if LLM_PROVIDER not in {"deepseek", "local"}:
+        raise ValueError(
+            f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}. "
+            "Supported values: deepseek, local."
+        )
+    if LLM_PROVIDER == "deepseek" and not DEEPSEEK_API_KEY.strip():
+        raise ValueError(
+            "DEEPSEEK_API_KEY is missing. "
+            "Suggestion: add DEEPSEEK_API_KEY=xxx to .env."
+        )
 
 # Text splitting
 CHUNK_SIZE = 1000

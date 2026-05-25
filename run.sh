@@ -30,13 +30,17 @@ pip install -q -r requirements.txt
 echo ""
 echo "📋 启动前检查:"
 echo "   - Ollama (embedding): 确认 nomic-embed-text:v1.5 已拉取"
-echo "   - LLM server: 确认 llama-server 或 Ollama 正在运行"
+echo "   - LLM: DeepSeek API 或本地 llama-server，取决于 LLM_PROVIDER"
 echo ""
 
 # Load .env for info
 source .env 2>/dev/null || true
-echo "   LLM: $LLM_MODEL @ $OPENAI_BASE_URL"
-echo "   Embedding: ${EMBEDDING_BACKEND:-local} / ${LOCAL_EMBEDDING_MODEL:-nomic-embed-text:v1.5}"
+if [ "${LLM_PROVIDER:-deepseek}" = "deepseek" ]; then
+    echo "   LLM: DeepSeek API / ${DEEPSEEK_MODEL:-deepseek-chat}"
+else
+    echo "   LLM: local / ${LOCAL_LLM_MODEL:-qwen-local} @ ${LOCAL_LLM_BASE_URL:-http://127.0.0.1:8080/v1}"
+fi
+echo "   Embedding: ${EMBEDDING_PROVIDER:-ollama} / ${OLLAMA_EMBED_MODEL:-nomic-embed-text:v1.5}"
 echo ""
 
 echo "🚀 启动 Streamlit..."

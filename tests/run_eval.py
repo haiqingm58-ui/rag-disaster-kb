@@ -10,9 +10,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.ingestion.disaster_api import sync_current_events
-from src.rag.chain import answer, get_llm
-from src.rag.retriever import retrieve_all
+from config import LLM_PROVIDER, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, LOCAL_LLM_MODEL
+
+sync_current_events = None
+answer = None
+get_llm = None
+retrieve_all = None
 
 
 SOURCE_LABELS = {
@@ -20,6 +23,19 @@ SOURCE_LABELS = {
     "realtime": "[实时]",
     "general": "[通用]",
 }
+
+
+def _load_runtime_dependencies() -> None:
+    global sync_current_events, answer, get_llm, retrieve_all
+
+    from src.ingestion.disaster_api import sync_current_events as _sync_current_events
+    from src.rag.chain import answer as _answer, get_llm as _get_llm
+    from src.rag.retriever import retrieve_all as _retrieve_all
+
+    sync_current_events = _sync_current_events
+    answer = _answer
+    get_llm = _get_llm
+    retrieve_all = _retrieve_all
 
 
 def _source_ok(expected: str, docs, response: str) -> bool:
@@ -165,6 +181,21 @@ def main() -> int:
     questions, total_available = _select_questions(all_questions, args.start, effective_limit)
 
     total_started_at = time.perf_counter()
+
+    print(f"当前 LLM_PROVIDER: {LLM_PROVIDER}", flush=True)
+    if LLM_PROVIDER == "deepseek":
+        print(f"当前模型: {DEEPSEEK_MODEL}", flush=True)
+        if not DEEPSEEK_API_KEY.strip():
+            print("DEEPSEEK_API_KEY is missing.", file=sys.stderr)
+            print("Suggestion: add DEEPSEEK_API_KEY=xxx to .env before running evaluation.", file=sys.stderr)
+            return 2
+    elif LLM_PROVIDER == "local":
+        print(f"当前模型: {LOCAL_LLM_MODEL}", flush=True)
+    else:
+        print(f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}", file=sys.stderr)
+        return 2
+
+    _load_runtime_dependencies()
 
     if not skip_sync:
         print("同步实时事件到向量库...")

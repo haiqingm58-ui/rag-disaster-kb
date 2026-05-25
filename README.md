@@ -1,6 +1,6 @@
 # Real-Time Geological Disaster Information Query
 
-实时地质灾害信息查询与灾害知识问答系统。项目基于 Streamlit、ChromaDB、本地 Qwen GGUF 大模型和 Ollama Embedding，结合 CENC、USGS、GDACS 等实时灾害数据源，提供中文灾害知识问答、地图展示、附近灾害筛选、来源追踪、导出和规则评测能力。
+实时地质灾害信息查询与灾害知识问答系统。项目基于 Streamlit、ChromaDB、DeepSeek API / 本地 llama-server 可切换 LLM 和本地 Ollama Embedding，结合 CENC、USGS、GDACS 等实时灾害数据源，提供中文灾害知识问答、地图展示、附近灾害筛选、来源追踪、导出和规则评测能力。
 
 ## 功能概览
 
@@ -22,7 +22,7 @@
   -> 文档与实时事件双路检索
   -> 相似度阈值过滤
   -> FlashRank Reranker
-  -> 本地 LLM 流式生成
+  -> DeepSeek API 或本地 LLM 流式生成
   -> 中文回答与来源标注
 ```
 
@@ -31,7 +31,7 @@
 | 组件 | 技术 | 默认位置 |
 | --- | --- | --- |
 | UI | Streamlit | `http://localhost:8501` |
-| LLM | llama.cpp server + Qwen GGUF | `http://127.0.0.1:8080/v1` |
+| LLM | DeepSeek API，或本地 llama.cpp server | `https://api.deepseek.com` / `http://127.0.0.1:8080/v1` |
 | Embedding | Ollama `nomic-embed-text:v1.5` | `http://127.0.0.1:11434` |
 | 向量库 | ChromaDB | `data/chroma_db/` |
 | 数据源 | CENC / USGS / GDACS | 网络 API 与本地缓存 |
@@ -73,20 +73,71 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-安装并启动 Ollama Embedding：
+安装并启动本地 Ollama Embedding：
 
 ```bash
 ollama pull nomic-embed-text:v1.5
 ollama serve
 ```
 
-准备 Qwen GGUF 模型文件。模型文件通常较大，不提交到 GitHub。默认配置会查找：
+## DeepSeek API 模式
+
+默认模式是 DeepSeek API 生成回答，本地仍保存文档、向量库和实时灾害缓存。
+
+编辑 `.env`：
+
+```bash
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=你的key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+LLM_MAX_TOKENS=512
+LLM_TEMPERATURE=0.2
+
+EMBEDDING_PROVIDER=ollama
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_EMBED_MODEL=nomic-embed-text:v1.5
+```
+
+启动：
+
+```bash
+bash start_all.sh
+```
+
+评测：
+
+```bash
+source venv/bin/activate
+python tests/run_eval.py --fast
+```
+
+DeepSeek 模式下不需要下载 GGUF 模型，也不需要启动 `llama-server`。
+
+## 本地模型模式
+
+如果需要回退到本地 Qwen GGUF，请编辑 `.env`：
+
+```bash
+LLM_PROVIDER=local
+LOCAL_LLM_BASE_URL=http://127.0.0.1:8080/v1
+LOCAL_LLM_MODEL=qwen-local
+LOCAL_LLM_MODEL_PATH=models/Qwen_Qwen3.5-9B-Q4_K_M.gguf
+```
+
+模型文件通常较大，不提交到 GitHub。默认建议放在：
 
 ```text
 models/Qwen_Qwen3.5-9B-Q4_K_M.gguf
 ```
 
-也可以通过 `.env` 或启动脚本参数调整模型路径。
+然后启动：
+
+```bash
+bash start_all.sh
+```
+
+`start_all.sh` 会在 local 模式下检查模型文件并自动启动 `llama-server`。
 
 ## 启动项目
 
@@ -96,14 +147,10 @@ models/Qwen_Qwen3.5-9B-Q4_K_M.gguf
 bash start_all.sh
 ```
 
-该脚本会检查 Ollama、Embedding 模型、llama.cpp server、Qwen GGUF 模型和 Streamlit 端口，并给出清晰的错误提示。
+该脚本会读取 `LLM_PROVIDER`：
 
-手动启动时可分两步：
-
-```bash
-bash scripts/run_llama.sh models/Qwen_Qwen3.5-9B-Q4_K_M.gguf
-streamlit run src/ui/app.py --server.headless true
-```
+- `deepseek`：检查 `DEEPSEEK_API_KEY`、DeepSeek 网络可达性、Ollama 和 embedding 模型，然后启动 Streamlit；不检查 GGUF，不启动 `llama-server`。
+- `local`：检查 GGUF 模型、本地 `llama-server`、Ollama 和 embedding 模型，然后启动 Streamlit。
 
 浏览器访问：
 
@@ -187,9 +234,18 @@ python tests/run_eval.py --fast
 
 仓库仅保留代码、示例知识库文档、评测题库和配置模板。真实 API Key、模型权重、向量数据库、缓存数据请在本地自行准备。
 
+DeepSeek API 模式下的数据边界：
+
+- 本地上传文档仍存储在本机。
+- ChromaDB 向量库仍存储在本机。
+- 实时灾害缓存仍存储在本机。
+- 每次问答只会把用户问题、对话历史摘要和本次检索命中的文档/实时事件片段发送给 DeepSeek API。
+- 系统不会主动一次性上传整个知识库。
+- 如果资料敏感，请不要上传敏感个人信息、机密文档或隐私数据；云端 API 调用存在第三方处理风险。
+
 ## 后续改进方向
 
-- 在评测输出中增加 token 统计，区分输入过长、输出过长和生成速度瓶颈。
+- 拆分 prompt 处理速度和输出生成速度，进一步定位慢查询瓶颈。
 - 增加更多中文灾害应急专业文档，提升 RAG 覆盖面。
 - 接入更多权威数据源，并增强实时数据异常恢复能力。
 - 增加 CI 检查，例如 Python 编译检查、JSON 校验和轻量评测。

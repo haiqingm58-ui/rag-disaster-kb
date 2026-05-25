@@ -13,16 +13,17 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
 from config import (
-    LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS,
-    OPENAI_API_KEY, OPENAI_BASE_URL, MAX_HISTORY_TURNS,
+    LLM_PROVIDER, LLM_TEMPERATURE, LLM_MAX_TOKENS,
+    DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL,
+    LOCAL_LLM_BASE_URL, LOCAL_LLM_MODEL, MAX_HISTORY_TURNS,
+    validate_llm_config,
 )
 
 logger = logging.getLogger(__name__)
 
 _last_usage: Optional[dict] = None
 
-SYSTEM_PROMPT = """/no_think
-你是一个灾害信息知识助手。你有两个信息来源：
+SYSTEM_PROMPT = """你是一个灾害信息知识助手。你有两个信息来源：
 1. 本地专业知识文档（通过向量检索获取的相关片段）
 2. 实时灾害数据（来自 CENC records via Wolfx mirror、USGS 地震监测和 GDACS 全球灾害预警系统）
 
@@ -39,7 +40,7 @@ SYSTEM_PROMPT = """/no_think
 上下文：
 {context}"""
 
-USER_PROMPT = "/no_think\n用户问题：{question}\n\n请直接用中文回答："
+USER_PROMPT = "用户问题：{question}\n\n请直接用中文回答："
 
 _llm: Optional[ChatOpenAI] = None
 
@@ -73,11 +74,50 @@ def _build_history(messages: List[dict], max_turns: int = MAX_HISTORY_TURNS) -> 
 
 
 def _build_prompt(history: str) -> ChatPromptTemplate:
+    # Qwen GGUF local mode benefits from /no_think; DeepSeek must receive a clean prompt.
+    prefix = "/no_think\n" if LLM_PROVIDER == "local" else ""
     system_with_history = SYSTEM_PROMPT.replace("{history}", history)
     return ChatPromptTemplate.from_messages([
-        ("system", system_with_history),
-        ("user", USER_PROMPT),
+        ("system", prefix + system_with_history),
+        ("user", prefix + USER_PROMPT),
     ])
+
+
+def current_llm_base_url() -> str:
+    return DEEPSEEK_BASE_URL if LLM_PROVIDER == "deepseek" else LOCAL_LLM_BASE_URL
+
+
+def current_llm_model() -> str:
+    return DEEPSEEK_MODEL if LLM_PROVIDER == "deepseek" else LOCAL_LLM_MODEL
+
+
+def create_llm() -> ChatOpenAI:
+    validate_llm_config()
+
+    if LLM_PROVIDER == "deepseek":
+        return ChatOpenAI(
+            api_key=DEEPSEEK_API_KEY,
+            base_url=DEEPSEEK_BASE_URL,
+            model=DEEPSEEK_MODEL,
+            temperature=LLM_TEMPERATURE,
+            max_tokens=LLM_MAX_TOKENS,
+            timeout=60,
+            stream_usage=True,
+        )
+
+    if LLM_PROVIDER == "local":
+        return ChatOpenAI(
+            api_key="not-needed",
+            base_url=LOCAL_LLM_BASE_URL,
+            model=LOCAL_LLM_MODEL,
+            temperature=LLM_TEMPERATURE,
+            max_tokens=LLM_MAX_TOKENS,
+            timeout=60,
+            stream_usage=True,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+        )
+
+    raise ValueError(f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}")
 
 
 def _get_llm() -> ChatOpenAI:
@@ -85,16 +125,7 @@ def _get_llm() -> ChatOpenAI:
     if _llm is not None:
         return _llm
 
-    _llm = ChatOpenAI(
-        model=LLM_MODEL,
-        temperature=LLM_TEMPERATURE,
-        max_tokens=LLM_MAX_TOKENS,
-        api_key=OPENAI_API_KEY,
-        base_url=OPENAI_BASE_URL,
-        timeout=60,
-        stream_usage=True,
-        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
-    )
+    _llm = create_llm()
     return _llm
 
 
@@ -120,7 +151,9 @@ def _empty_usage(elapsed_seconds: float) -> dict:
         "elapsed_seconds": round(elapsed_seconds, 2),
         "tokens_per_second": None,
         "max_tokens": LLM_MAX_TOKENS,
-        "llm_base_url": OPENAI_BASE_URL,
+        "llm_base_url": current_llm_base_url(),
+        "llm_provider": LLM_PROVIDER,
+        "llm_model": current_llm_model(),
         "usage_source": None,
         "usage_estimated": False,
     }
@@ -165,7 +198,7 @@ def _extract_usage(response: AIMessage, elapsed_seconds: float) -> dict:
 
 
 def _llama_tokenize_url() -> str:
-    parsed = urlparse(OPENAI_BASE_URL)
+    parsed = urlparse(LOCAL_LLM_BASE_URL)
     path = parsed.path.rstrip("/")
     if path.endswith("/v1"):
         path = path[:-3]
@@ -177,6 +210,8 @@ def _count_tokens_with_llama(text: str) -> Optional[int]:
     """Count tokens through llama.cpp server's /tokenize endpoint when available."""
     if not text:
         return 0
+    if LLM_PROVIDER != "local":
+        return None
 
     request = Request(
         _llama_tokenize_url(),

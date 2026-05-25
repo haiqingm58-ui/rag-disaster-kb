@@ -130,7 +130,9 @@ def render_chat_history() -> None:
 
 def render_sidebar() -> dict:
     from config import (
-        LLM_MODEL, OPENAI_BASE_URL, RELEVANCE_THRESHOLD,
+        LLM_PROVIDER, DEEPSEEK_API_KEY, DEEPSEEK_MODEL,
+        LOCAL_LLM_BASE_URL, LOCAL_LLM_MODEL,
+        OLLAMA_EMBED_MODEL, COLLECTION_DOCS, COLLECTION_EVENTS,
         DEFAULT_LATITUDE, DEFAULT_LONGITUDE, DEFAULT_RADIUS_KM,
         DEFAULT_LOCATION_NAME,
     )
@@ -233,8 +235,16 @@ def render_sidebar() -> dict:
 
         st.markdown("---")
         st.subheader("模型信息")
-        st.caption(f"LLM: {LLM_MODEL}")
-        st.caption(f"Endpoint: {OPENAI_BASE_URL}")
+        if LLM_PROVIDER == "deepseek":
+            st.caption("当前大模型：DeepSeek API")
+            st.caption(f"模型名称：{DEEPSEEK_MODEL}")
+            st.caption(f"API Key：{'已配置' if DEEPSEEK_API_KEY.strip() else '未配置'}")
+        else:
+            st.caption("当前大模型：本地 llama-server")
+            st.caption(f"模型名称：{LOCAL_LLM_MODEL}")
+            st.caption(f"模型地址：{LOCAL_LLM_BASE_URL}")
+        st.caption("文档与向量库：本地 ChromaDB")
+        st.caption(f"Embedding：本地 Ollama {OLLAMA_EMBED_MODEL}")
 
     return {
         "enable_docs": enable_docs,

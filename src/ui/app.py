@@ -487,16 +487,20 @@ def main():
 
         # Retrieve – pass LLM for query rewriting
         with st.spinner("正在检索相关信息..."):
-            llm = get_llm()
-            documents = retrieve_all(
-                prompt,
-                enable_docs=settings["enable_docs"],
-                enable_events=settings["enable_events"],
-                llm=llm,
-            )
-            retrieval_errors = get_last_retrieval_errors()
-            if retrieval_errors:
-                st.warning(format_embedding_error(Exception("；".join(retrieval_errors))))
+            try:
+                llm = get_llm()
+                documents = retrieve_all(
+                    prompt,
+                    enable_docs=settings["enable_docs"],
+                    enable_events=settings["enable_events"],
+                    llm=llm,
+                )
+                retrieval_errors = get_last_retrieval_errors()
+                if retrieval_errors:
+                    st.warning(format_embedding_error(Exception("；".join(retrieval_errors))))
+            except Exception as e:
+                documents = []
+                st.error(format_llm_error(e))
 
         # Generate streaming response with chat history
         with st.chat_message("assistant"):
@@ -518,8 +522,7 @@ def main():
                     placeholder.markdown(full_response)
                 else:
                     full_response = (
-                        "抱歉，模型服务返回了空内容。请确认 llama-server 已禁用 thinking 模式，"
-                        "或重启服务后再试。"
+                        "抱歉，模型服务返回了空内容。请检查当前大模型配置、网络连接或重启服务后再试。"
                     )
                     placeholder.warning(full_response)
             except ConnectionError:
