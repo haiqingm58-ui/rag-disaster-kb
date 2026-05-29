@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Disaster Knowledge Graph Schema",
+  "description": "Standard JSON format for disaster event knowledge graph entities and relationships.",
+
+  "entities": {
+    "DisasterEvent": {
+      "description": "A disaster event node.",
+      "example": {
+        "event_id": "evt-a1b2c3d4e5f6",
+        "name": "云南大理州漾濞县5.2级地震",
+        "disaster_type": "earthquake",
+        "start_time": "2026-05-20T08:30:00",
+        "end_time": null,
+        "status": "ongoing",
+        "summary": "2026年5月20日云南大理州漾濞县发生5.2级地震，震源深度10千米。",
+        "confidence": 0.92
+      }
+    },
+
+    "Attribute": {
+      "description": "A dynamic key-value attribute of a disaster event.",
+      "example": {
+        "attr_id": "attr-11aa22bb33cc",
+        "event_id": "evt-a1b2c3d4e5f6",
+        "key": "magnitude",
+        "value": "5.2",
+        "unit": "Mw",
+        "category": "magnitude",
+        "data_type": "number",
+        "source": "llm_extraction",
+        "update_time": "2026-05-29T10:00:00"
+      }
+    },
+
+    "Location": {
+      "description": "A geographic location node.",
+      "example": {
+        "loc_id": "loc-99dd88ee77ff",
+        "name": "云南大理漾濞县",
+        "latitude": 25.67,
+        "longitude": 99.92,
+        "address": "云南省大理白族自治州漾濞彝族自治县",
+        "country": "中国"
+      }
+    },
+
+    "SourceDocument": {
+      "description": "A document that reports or provides evidence.",
+      "example": {
+        "doc_id": "doc-ab12cd34ef56",
+        "title": "云南漾濞县发生5.2级地震 暂无人员伤亡报告",
+        "url": "https://example.com/news/20260520",
+        "source_type": "news",
+        "publish_time": "2026-05-20T12:00:00",
+        "content_snippet": "据中国地震台网正式测定，5月20日8时30分在云南大理州漾濞县发生5.2级地震..."
+      }
+    }
+  },
+
+  "relationships": {
+    "HAS_ATTRIBUTE": {
+      "from": "DisasterEvent",
+      "to": "Attribute",
+      "cardinality": "1:N",
+      "description": "A disaster event has one or more dynamic attributes.",
+      "example": {
+        "source_id": "evt-a1b2c3d4e5f6",
+        "target_id": "attr-11aa22bb33cc",
+        "type": "HAS_ATTRIBUTE"
+      }
+    },
+    "OCCURRED_AT": {
+      "from": "DisasterEvent",
+      "to": "Location",
+      "cardinality": "N:1",
+      "description": "A disaster event occurred at a specific location.",
+      "example": {
+        "source_id": "evt-a1b2c3d4e5f6",
+        "target_id": "loc-99dd88ee77ff",
+        "type": "OCCURRED_AT"
+      }
+    },
+    "REPORTED_BY": {
+      "from": "DisasterEvent",
+      "to": "SourceDocument",
+      "cardinality": "N:M",
+      "description": "A disaster event is reported by one or more source documents.",
+      "example": {
+        "source_id": "evt-a1b2c3d4e5f6",
+        "target_id": "doc-ab12cd34ef56",
+        "type": "REPORTED_BY"
+      }
+    },
+    "EVIDENCED_BY": {
+      "from": "Attribute",
+      "to": "SourceDocument",
+      "cardinality": "N:M",
+      "description": "An attribute value is evidenced by a source document.",
+      "example": {
+        "source_id": "attr-11aa22bb33cc",
+        "target_id": "doc-ab12cd34ef56",
+        "type": "EVIDENCED_BY"
+      }
+    }
+  },
+
+  "extraction_result": {
+    "description": "Complete output from the LLM extractor function.",
+    "example": {
+      "event": {"event_id": "evt-a1b2c3d4e5f6", "name": "...", "disaster_type": "earthquake"},
+      "attributes": [{"attr_id": "attr-11aa22bb33cc", "key": "magnitude", "value": "5.2"}],
+      "location": {"loc_id": "loc-99dd88ee77ff", "name": "..."},
+      "source_document": {"doc_id": "doc-ab12cd34ef56", "title": "..."}
+    }
+  }
+}

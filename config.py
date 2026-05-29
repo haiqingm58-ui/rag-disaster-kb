@@ -8,7 +8,10 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 DOCUMENTS_DIR = DATA_DIR / "documents"
 CACHE_DIR = DATA_DIR / "cache"
-CHROMA_DIR = DATA_DIR / "chroma_db"
+UPLOADS_DIR = DATA_DIR / "uploads"
+MARKDOWN_DIR = DATA_DIR / "markdown"
+REPORTS_DIR = DATA_DIR / "reports"
+CHROMA_DIR = Path(os.getenv("CHROMA_DIR", str(DATA_DIR / "chroma_db")))
 
 # Collections
 COLLECTION_DOCS = "local_docs"
@@ -110,6 +113,23 @@ DEFAULT_LONGITUDE = float(os.getenv("DEFAULT_LONGITUDE", "112.9388"))
 DEFAULT_RADIUS_KM = int(os.getenv("DEFAULT_RADIUS_KM", "500"))
 DEFAULT_MAP_ZOOM = int(os.getenv("DEFAULT_MAP_ZOOM", "6"))
 
+# Geocoding
+GEOCODER_PROVIDER = os.getenv("GEOCODER_PROVIDER", "nominatim").lower()
+GEOCODER_CACHE_TTL_HOURS = int(os.getenv("GEOCODER_CACHE_TTL_HOURS", "24"))
+GEOCODER_USER_AGENT = os.getenv(
+    "GEOCODER_USER_AGENT",
+    "georisk-disaster-query/1.0",
+)
+
+# Optional public social signal adapters
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
+SOCIAL_SIGNALS_CACHE_FILE = CACHE_DIR / "social_signals.json"
+
+# Event deduplication and confidence scoring
+EVENT_DEDUP_TIME_WINDOW_MINUTES = int(os.getenv("EVENT_DEDUP_TIME_WINDOW_MINUTES", "30"))
+EVENT_DEDUP_DISTANCE_KM = float(os.getenv("EVENT_DEDUP_DISTANCE_KM", "50"))
+EVENT_DEDUP_MAGNITUDE_DELTA = float(os.getenv("EVENT_DEDUP_MAGNITUDE_DELTA", "0.3"))
+
 # Ensure directories exist
-for d in [DOCUMENTS_DIR, CACHE_DIR, CHROMA_DIR]:
+for d in [DOCUMENTS_DIR, CACHE_DIR, UPLOADS_DIR, MARKDOWN_DIR, REPORTS_DIR, REPORTS_DIR / "images", CHROMA_DIR]:
     d.mkdir(parents=True, exist_ok=True)

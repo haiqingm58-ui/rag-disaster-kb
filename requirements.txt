@@ -12,3 +12,6 @@ requests>=2.32.0
 python-dotenv>=1.0.0
 pandas>=2.0.0
 pydeck>=0.9.0
+streamlit-js-eval>=0.1.7
+pymupdf4llm>=0.0.17
+neo4j>=5.20.0

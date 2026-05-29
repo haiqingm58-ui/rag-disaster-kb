@@ -1,0 +1,129 @@
+{
+  "generated_at": "2026-05-29T13:11:01.727372+00:00",
+  "standards": [
+    {
+      "standard_id": "std-ff5ca886ab58",
+      "code": "GB/T 32864-2016",
+      "title": "滑坡防治工程勘查规范",
+      "industry": "geological_disaster",
+      "chapters": 13,
+      "clauses": 260,
+      "terms": 10,
+      "requirements": 180,
+      "indicators": 25,
+      "methods": 5,
+      "objects": 8,
+      "relationships_from_std": 283,
+      "total_nodes": 502
+    },
+    {
+      "standard_id": "std-950a7dee2b65",
+      "code": "GB/T 33680-2017",
+      "title": "暴雨灾害等级",
+      "industry": "meteorological_disaster",
+      "chapters": 4,
+      "clauses": 13,
+      "terms": 2,
+      "requirements": 0,
+      "indicators": 2,
+      "methods": 0,
+      "objects": 0,
+      "relationships_from_std": 19,
+      "total_nodes": 22
+    },
+    {
+      "standard_id": "std-183dcb017448",
+      "code": "GB/T 38509-2020",
+      "title": "滑坡防治设计规范",
+      "industry": "geological_disaster",
+      "chapters": 15,
+      "clauses": 467,
+      "terms": 2,
+      "requirements": 737,
+      "indicators": 141,
+      "methods": 39,
+      "objects": 9,
+      "relationships_from_std": 484,
+      "total_nodes": 1411
+    },
+    {
+      "standard_id": "std-b70ab92e6acc",
+      "code": "GB/T 4012-2021",
+      "title": "地质灾害危险性评估规范",
+      "industry": "geological_disaster",
+      "chapters": 10,
+      "clauses": 282,
+      "terms": 8,
+      "requirements": 66,
+      "indicators": 1,
+      "methods": 2,
+      "objects": 9,
+      "relationships_from_std": 300,
+      "total_nodes": 379
+    },
+    {
+      "standard_id": "std-a52a771275a7",
+      "code": "GB/T 44011.1-2024",
+      "title": "自然灾害综合风险评估技术规范 第1部分 房屋建筑",
+      "industry": "natural_disaster_risk",
+      "chapters": 8,
+      "clauses": 25,
+      "terms": 9,
+      "requirements": 22,
+      "indicators": 0,
+      "methods": 4,
+      "objects": 0,
+      "relationships_from_std": 42,
+      "total_nodes": 69
+    },
+    {
+      "standard_id": "std-e4dda33fcbb4",
+      "code": "T/CAGHP 002-2018",
+      "title": "地质灾害防治基本术语",
+      "industry": "geological_disaster",
+      "chapters": 12,
+      "clauses": 940,
+      "terms": 757,
+      "requirements": 107,
+      "indicators": 9,
+      "methods": 19,
+      "objects": 15,
+      "relationships_from_std": 1709,
+      "total_nodes": 1860
+    }
+  ],
+  "ghost_nodes": [],
+  "orphan_nodes": [],
+  "isolated_nodes": [],
+  "all_relation_types": [
+    {
+      "type": "HAS_CLAUSE",
+      "count": 3961
+    },
+    {
+      "type": "DEFINES",
+      "count": 1576
+    },
+    {
+      "type": "HAS_REQUIREMENT",
+      "count": 1112
+    },
+    {
+      "type": "HAS_SUB_CLAUSE",
+      "count": 896
+    },
+    {
+      "type": "HAS_INDICATOR",
+      "count": 178
+    },
+    {
+      "type": "USES_METHOD",
+      "count": 69
+    },
+    {
+      "type": "HAS_CHAPTER",
+      "count": 62
+    }
+  ],
+  "summary": "6 standards, 4243 total nodes, 2837 relationships"
+}

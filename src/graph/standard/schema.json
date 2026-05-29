@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Industry Standard Knowledge Graph Schema",
+  "description": "Entities and relationships for industry standard documents.",
+
+  "entities": {
+    "StandardDocument": {
+      "description": "A published industry standard document.",
+      "example": {
+        "standard_id": "std-a1b2c3d4e5f6",
+        "code": "DZ/T 0286-2015",
+        "title": "地质灾害危险性评估规范",
+        "industry": "geological_disaster",
+        "status": "current",
+        "publish_date": "2015-10-01",
+        "effective_date": "2016-01-01",
+        "issuing_body": "国土资源部",
+        "source_file": "data/standards/DZ_T_0286-2015.md",
+        "summary": "本标准规定了地质灾害危险性评估的技术要求和方法。"
+      }
+    },
+    "Chapter": {
+      "description": "A chapter or section within a standard.",
+      "example": {
+        "chapter_id": "ch-bb11cc22dd33",
+        "standard_id": "std-a1b2c3d4e5f6",
+        "chapter_number": "3",
+        "title": "基本规定",
+        "level": 1,
+        "order_index": 2
+      }
+    },
+    "Clause": {
+      "description": "A numbered clause/paragraph within a standard.",
+      "example": {
+        "clause_id": "cl-ee44ff55aa66",
+        "standard_id": "std-a1b2c3d4e5f6",
+        "chapter_id": "ch-bb11cc22dd33",
+        "clause_number": "3.1.2",
+        "title": "一般要求",
+        "content": "地质灾害评估应采用定性与定量相结合的方法。",
+        "level": 3,
+        "order_index": 1
+      }
+    },
+    "Term": {
+      "description": "A defined term from the standard.",
+      "example": {
+        "term_id": "term-77gg88hh99ii",
+        "name": "地质灾害",
+        "definition": "自然因素或人为活动引发的危害人民生命和财产安全的地质现象。",
+        "source_clause_id": "cl-ee44ff55aa66"
+      }
+    },
+    "Requirement": {
+      "description": "A normative requirement extracted from a clause.",
+      "example": {
+        "requirement_id": "req-jj00kk11ll22",
+        "clause_id": "cl-ee44ff55aa66",
+        "text": "地质灾害评估应采用定性与定量相结合的方法。",
+        "obligation": "shall",
+        "requirement_type": "technical",
+        "confidence": 0.95
+      }
+    },
+    "Indicator": {
+      "description": "A quantitative indicator/parameter from a clause.",
+      "example": {
+        "indicator_id": "ind-mm33nn44oo55",
+        "name": "滑坡稳定系数",
+        "value": "1.15",
+        "operator": ">=",
+        "unit": "无量纲",
+        "description": "滑坡稳定性计算的安全系数不应小于1.15",
+        "source_clause_id": "cl-ee44ff55aa66"
+      }
+    },
+    "Method": {
+      "description": "A methodology or procedure referenced in a clause.",
+      "example": {
+        "method_id": "meth-pp66qq77rr88",
+        "name": "极限平衡法",
+        "description": "基于极限平衡理论的边坡稳定性分析方法。",
+        "source_clause_id": "cl-ee44ff55aa66"
+      }
+    },
+    "StandardObject": {
+      "description": "An entity that a standard applies to.",
+      "example": {
+        "object_id": "obj-ss88tt99uu00",
+        "name": "滑坡",
+        "object_type": "process",
+        "description": "斜坡上的岩土体沿一定的软弱面整体下滑的现象。"
+      }
+    }
+  },
+
+  "relationships": {
+    "HAS_CHAPTER": {"from": "StandardDocument", "to": "Chapter", "cardinality": "1:N"},
+    "HAS_CLAUSE": {"from": "StandardDocument", "to": "Clause", "cardinality": "1:N"},
+    "HAS_CLAUSE": {"from": "Chapter", "to": "Clause", "cardinality": "1:N"},
+    "HAS_SUB_CLAUSE": {"from": "Clause", "to": "Clause", "cardinality": "1:N"},
+    "DEFINES": {"from": "StandardDocument", "to": "Term", "cardinality": "1:N"},
+    "DEFINES": {"from": "Clause", "to": "Term", "cardinality": "1:N"},
+    "HAS_REQUIREMENT": {"from": "Clause", "to": "Requirement", "cardinality": "1:N"},
+    "HAS_INDICATOR": {"from": "Clause", "to": "Indicator", "cardinality": "1:N"},
+    "USES_METHOD": {"from": "Clause", "to": "Method", "cardinality": "N:M"},
+    "APPLIES_TO": {"from": "Clause", "to": "StandardObject", "cardinality": "N:M"},
+    "REFERENCES": {"from": "StandardDocument", "to": "StandardDocument", "cardinality": "N:M"}
+  }
+}

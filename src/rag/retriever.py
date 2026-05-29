@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 
 from src.vectorstore.chroma_store import retrieve_with_scores
+from src.rag.disaster_terms import expand_query_with_terms
 from config import (
     COLLECTION_DOCS,
     COLLECTION_EVENTS,
@@ -147,10 +148,12 @@ def retrieve_all(
     """
     _last_retrieval_errors.clear()
 
-    # Step 0: query rewriting
-    search_query = query
+    # Step 0: Chinese disaster term expansion + query rewriting
+    expanded_query = expand_query_with_terms(query)
+    search_query = expanded_query
     if llm is not None and ENABLE_QUERY_REWRITE:
-        search_query = rewrite_query(query, llm)
+        rewritten = rewrite_query(expanded_query, llm)
+        search_query = f"{rewritten} {expanded_query}" if rewritten != expanded_query else expanded_query
 
     results: List[Document] = []
 

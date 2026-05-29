@@ -1,0 +1,5 @@
+{"text": "滑坡调查应包括资料收集、现场踏勘和综合分析。", "spo_list": [{"subject": "滑坡调查", "predicate": "HAS_REQUIREMENT", "object": "应包括资料收集、现场踏勘和综合分析"}, {"subject": "滑坡调查", "predicate": "USES_METHOD", "object": "现场踏勘"}, {"subject": "滑坡调查", "predicate": "USES_METHOD", "object": "综合分析"}]}
+{"text": "崩塌危岩体稳定性系数不应小于1.15。", "spo_list": [{"subject": "崩塌危岩体", "predicate": "APPLIES_TO", "object": "崩塌"}, {"subject": "3.1.2", "predicate": "HAS_INDICATOR", "object": "稳定性系数不应小于1.15"}]}
+{"text": "地质灾害评估应符合GB/T 12345-2020的要求。", "spo_list": [{"subject": "地质灾害评估", "predicate": "HAS_REQUIREMENT", "object": "应符合GB/T 12345-2020的要求"}, {"subject": "DZ/T 0286", "predicate": "REFERENCES", "object": "GB/T 12345-2020"}]}
+{"text": "术语2.1 滑坡：斜坡上的岩土体沿一定的软弱面整体下滑的现象。", "spo_list": [{"subject": "2.1", "predicate": "DEFINES", "object": "滑坡"}]}
+{"text": "国土资源部发布了DZ/T 0286-2015地质灾害危险性评估规范。", "spo_list": [{"subject": "DZ/T 0286-2015", "predicate": "ISSUED_BY", "object": "国土资源部"}, {"subject": "DZ/T 0286-2015", "predicate": "APPLIES_TO", "object": "地质灾害"}]}
