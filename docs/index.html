@@ -7,122 +7,107 @@
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <header class="site-header">
-    <div>
-      <p class="eyebrow">GitHub Pages 静态展示</p>
-      <h1>地质灾害行业标准知识图谱</h1>
-      <p class="subtitle">面向 6 篇行业标准的结构化浏览、专题查看与本地搜索。</p>
+  <header class="hero" id="home">
+    <nav class="top-nav" aria-label="页面导航">
+      <a href="#home">首页</a>
+      <a href="#schema">图谱模式</a>
+      <a href="#standards">标准总览</a>
+      <a href="#standard-detail">单篇标准</a>
+      <a href="#topics">专题图谱</a>
+      <a href="#search">搜索</a>
+    </nav>
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">GitHub Pages 静态知识图谱</p>
+        <h1>地质灾害行业标准知识图谱</h1>
+        <p class="subtitle">基于 6 篇行业标准构建的可视化知识图谱。</p>
+      </div>
+      <div class="stats-grid" id="homeStats" aria-label="图谱统计"></div>
     </div>
-    <div class="header-stats" id="headerStats" aria-live="polite"></div>
   </header>
-
-  <nav class="top-nav" aria-label="页面导航">
-    <a href="#schema">图谱模式</a>
-    <a href="#standards">标准总览</a>
-    <a href="#single">单篇标准</a>
-    <a href="#topics">专题图谱</a>
-    <a href="#search">搜索</a>
-  </nav>
 
   <main>
     <section class="section" id="schema">
-      <div class="section-title">
+      <div class="section-heading">
         <p class="eyebrow">Schema</p>
         <h2>图谱模式</h2>
+        <p>默认先展示图谱结构，而不是渲染大规模网络，便于理解标准、章节、条款与实体之间的层级关系。</p>
       </div>
-      <div class="schema-panel" aria-label="知识图谱模式图">
-        <div class="schema-row">
-          <div class="schema-node standard">StandardDocument<br><span>标准文档</span></div>
-          <div class="schema-arrow">HAS_CHAPTER</div>
-          <div class="schema-node chapter">Chapter<br><span>章节</span></div>
-          <div class="schema-arrow">HAS_CLAUSE</div>
-          <div class="schema-node clause">Clause<br><span>条款</span></div>
-        </div>
-        <div class="schema-branches">
-          <div class="schema-node term">Term<br><span>术语</span></div>
-          <div class="schema-node requirement">Requirement<br><span>规范要求</span></div>
-          <div class="schema-node indicator">Indicator<br><span>指标参数</span></div>
-          <div class="schema-node method">Method<br><span>方法</span></div>
-          <div class="schema-node object">StandardObject<br><span>适用对象</span></div>
-        </div>
-      </div>
+      <div class="schema-board" id="schemaBoard"></div>
       <div class="legend" id="legend"></div>
     </section>
 
     <section class="section" id="standards">
-      <div class="section-title">
-        <p class="eyebrow">Overview</p>
+      <div class="section-heading">
+        <p class="eyebrow">Standards</p>
         <h2>标准总览</h2>
+        <p>点击任意标准进入单篇标准详情，继续查看章节、条款和关联实体。</p>
       </div>
       <div class="standard-grid" id="standardGrid"></div>
     </section>
 
-    <section class="section" id="single">
-      <div class="section-title">
-        <p class="eyebrow">Drill Down</p>
+    <section class="section" id="standard-detail">
+      <div class="section-heading">
+        <p class="eyebrow">Explore</p>
         <h2>单篇标准</h2>
+        <p id="activeStandardIntro">选择标准后，在这里逐层浏览章节、条款、术语、规范要求、指标参数和方法。</p>
       </div>
-      <div class="workspace">
-        <aside class="browser-panel">
-          <h3 id="activeStandardTitle">请选择一篇标准</h3>
-          <p id="activeStandardMeta" class="muted">点击上方标准卡片后展示章节。</p>
-          <div class="list" id="chapterList"></div>
-        </aside>
-        <section class="graph-panel">
-          <div class="panel-toolbar">
-            <div>
-              <h3 id="graphTitle">标准章节图谱</h3>
-              <p id="graphHint" class="muted">默认不渲染全部节点，单篇标准视图最多展示 120 个节点。</p>
-            </div>
-            <span class="node-counter" id="nodeCounter">0 节点</span>
+      <div class="detail-layout">
+        <aside class="chapter-panel">
+          <div class="panel-title">
+            <h3>章节树</h3>
+            <span id="chapterCount">0</span>
           </div>
-          <div class="graph-stage" id="graphStage" aria-label="知识图谱展示区"></div>
+          <div class="chapter-tree" id="chapterTree"></div>
+        </aside>
+
+        <section class="clause-panel">
+          <div class="panel-title">
+            <h3 id="clausePanelTitle">条款列表</h3>
+            <span id="clauseCount">0</span>
+          </div>
+          <div class="clause-list" id="clauseList"></div>
         </section>
-        <aside class="detail-panel">
-          <h3>详情</h3>
-          <div id="detailBox" class="detail-box muted">点击章节、条款、术语、要求或指标查看详情。</div>
+
+        <aside class="node-panel">
+          <div class="panel-title">
+            <h3>节点详情</h3>
+            <span id="relationCount">0</span>
+          </div>
+          <div class="node-detail" id="nodeDetail">点击标准卡片开始浏览。</div>
+          <div class="mini-graph" id="clauseGraph" aria-label="条款小型关系图"></div>
         </aside>
       </div>
     </section>
 
     <section class="section" id="topics">
-      <div class="section-title">
+      <div class="section-heading">
         <p class="eyebrow">Topics</p>
         <h2>专题图谱</h2>
+        <p>每个专题最多展示 80 个节点，用小型关系图呈现高频主题，不生成黑底大网络。</p>
       </div>
-      <div class="topic-actions" id="topicActions"></div>
-      <div class="topic-layout">
-        <div class="graph-panel">
-          <div class="panel-toolbar">
-            <div>
-              <h3 id="topicTitle">滑坡专题</h3>
-              <p class="muted">每个专题最多展示 80 个节点。</p>
-            </div>
-            <span class="node-counter" id="topicCounter">0 节点</span>
-          </div>
-          <div class="graph-stage compact" id="topicStage" aria-label="专题图谱展示区"></div>
-        </div>
-        <aside class="detail-panel">
-          <h3>专题要点</h3>
-          <div id="topicDetail" class="detail-box muted"></div>
-        </aside>
+      <div class="topic-tabs" id="topicTabs"></div>
+      <div class="topic-body">
+        <div class="topic-graph" id="topicGraph"></div>
+        <div class="topic-list" id="topicList"></div>
       </div>
     </section>
 
     <section class="section" id="search">
-      <div class="section-title">
+      <div class="section-heading">
         <p class="eyebrow">Search</p>
         <h2>搜索</h2>
+        <p>搜索标准、章节、条款、术语、规范要求和指标参数；结果按类型分组，点击后跳转到详情。</p>
       </div>
-      <div class="search-panel">
-        <input id="searchInput" type="search" placeholder="搜索标准、章节、条款、术语、要求、指标" autocomplete="off">
-        <div id="searchResults" class="search-results"></div>
+      <div class="search-box">
+        <input id="searchInput" type="search" placeholder="输入关键词，例如：滑坡、暴雨、风险评估、监测" autocomplete="off">
       </div>
+      <div class="search-results" id="searchResults"></div>
     </section>
   </main>
 
-  <footer>
-    <span>数据来源：docs/data/graph_data.json 与 docs/data/search_index.json</span>
+  <footer class="site-footer">
+    <span>静态数据：data/graph_data.json 与 data/search_index.json</span>
     <span id="generatedAt"></span>
   </footer>
 
