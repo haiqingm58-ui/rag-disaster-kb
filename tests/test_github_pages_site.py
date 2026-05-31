@@ -24,11 +24,13 @@ def test_index_is_clear_github_pages_entry():
     html = read_text(DOCS / "index.html")
     required = [
         "\u5730\u8d28\u707e\u5bb3\u884c\u4e1a\u6807\u51c6\u77e5\u8bc6\u56fe\u8c31",
+        "\u5982\u4f55\u4f7f\u7528",
         "\u56fe\u8c31\u6a21\u5f0f",
         "\u6807\u51c6\u603b\u89c8",
         "\u5355\u7bc7\u6807\u51c6",
         "\u4e13\u9898\u56fe\u8c31",
         "\u641c\u7d22",
+        "\u76f8\u5173\u6761\u6b3e\u5217\u8868",
     ]
     for text in required:
         assert text in html
@@ -82,6 +84,22 @@ def test_app_has_expected_structure_and_default_limits():
     assert ".slice(0, 79)" in app
     assert "graphDataFrame" in read_text(DOCS / "index.html")
     assert "<script id=\"graphData\"" not in read_text(DOCS / "index.html")
+
+
+def test_experience_copy_and_search_features_exist():
+    app = read_text(DOCS / "assets" / "app.js")
+    for text in [
+        "\u6ed1\u5761",
+        "\u66b4\u96e8",
+        "\u98ce\u9669\u8bc4\u4f30",
+        "\u76d1\u6d4b",
+        "\u6297\u6ed1\u6869",
+        "\u590d\u5236\u6761\u6b3e\u539f\u6587",
+        "\u590d\u5236\u4e3a Markdown",
+        "highlightText",
+        "navigator.clipboard.writeText",
+    ]:
+        assert text in app
 
 
 def test_six_standard_titles_are_available():

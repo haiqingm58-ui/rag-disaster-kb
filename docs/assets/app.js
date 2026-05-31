@@ -29,6 +29,17 @@ const STANDARD_ORDER = [
   "GB/T 44011.1-2024",
 ];
 
+const STANDARD_DESCRIPTIONS = {
+  "GB/T 32864-2016": "滑坡防治工程勘查相关标准",
+  "GB/T 38509-2020": "滑坡防治工程设计相关标准",
+  "T/CAGHP 002-2018": "地质灾害防治术语标准",
+  "GB/T 4012-2021": "地质灾害危险性评估标准",
+  "GB/T 33680-2017": "暴雨灾害等级标准",
+  "GB/T 44011.1-2024": "自然灾害综合风险评估标准",
+};
+
+const POPULAR_KEYWORDS = ["滑坡", "暴雨", "风险评估", "监测", "抗滑桩"];
+
 const TOPICS = [
   { name: "滑坡", keywords: ["滑坡", "边坡", "抗滑", "稳定", "勘查", "防治"] },
   { name: "暴雨", keywords: ["暴雨", "降雨", "雨量", "灾害等级"] },
@@ -66,8 +77,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderTopic(TOPICS[0].name);
     bindSearch();
     renderStandardDetail(STANDARD_ORDER[0], { scroll: false });
+    setLoading(false);
   } catch (error) {
-    document.body.insertAdjacentHTML("afterbegin", `<div class="empty">数据加载失败：${escapeHtml(error.message)}</div>`);
+    showLoadError(error);
   }
 });
 
@@ -102,6 +114,23 @@ async function readJson(path, frameId) {
       setTimeout(() => reject(fetchError), 4000);
     });
   }
+}
+
+function setLoading(isLoading) {
+  document.getElementById("loadingState")?.classList.toggle("hidden", !isLoading);
+}
+
+function showLoadError(error) {
+  const box = document.getElementById("loadingState");
+  if (!box) return;
+  box.classList.remove("hidden");
+  box.innerHTML = `
+    <div class="load-error">
+      <strong>知识图谱数据加载失败</strong>
+      <span>请确认 data/graph_data.json 和 data/search_index.json 已随 docs 目录一起发布。</span>
+      <small>${escapeHtml(error.message)}</small>
+    </div>
+  `;
 }
 
 function buildIndex() {
@@ -195,6 +224,7 @@ function renderStandards() {
       <button class="standard-card" data-code="${escapeAttr(code)}">
         <strong>${escapeHtml(standard.code)}</strong>
         <h3>${escapeHtml(standard.title)}</h3>
+        <p class="standard-desc">${escapeHtml(STANDARD_DESCRIPTIONS[code] || "行业标准知识图谱节点")}</p>
         <div class="card-metrics">
           <span>${standard.chapters || 0} 章</span>
           <span>${standard.clauses || 0} 条款</span>
@@ -319,14 +349,25 @@ function renderClauseDetail(clauseId) {
   document.getElementById("relationCount").textContent = `${relatedCount} 关联`;
   document.getElementById("nodeDetail").innerHTML = `
     <h4>${escapeHtml(activeClause.number)} ${escapeHtml(activeClause.title || "条款")}</h4>
-    ${detailRow("所属标准", activeClause.code)}
-    ${detailRow("条款内容", activeClause.content || activeClause.title || "")}
+    <div class="clause-actions">
+      <button class="copy-button" data-copy="plain">复制条款原文</button>
+      <button class="copy-button" data-copy="markdown">复制为 Markdown</button>
+    </div>
+    ${detailBlock("条款原文", `
+      ${detailRow("所属标准", activeClause.code)}
+      ${detailRow("条款编号", activeClause.number || "")}
+      ${detailRow("条款内容", activeClause.content || activeClause.title || "")}
+    `)}
     ${entitySection("关联术语", "Term", related.Term)}
     ${entitySection("规范要求", "Requirement", related.Requirement)}
     ${entitySection("指标参数", "Indicator", related.Indicator)}
     ${entitySection("方法", "Method", related.Method)}
     ${entitySection("适用对象", "StandardObject", related.StandardObject)}
   `;
+
+  document.querySelectorAll(".copy-button").forEach((button) => {
+    button.addEventListener("click", () => copyClause(button.dataset.copy));
+  });
 
   document.querySelectorAll(".entity-button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -368,13 +409,17 @@ function renderTopic(topicName) {
     .filter((item) => ["Clause", "Term", "Requirement", "Indicator", "Method"].includes(item.type))
     .filter((item) => topic.keywords.some((keyword) => item.text.includes(keyword)))
     .slice(0, 79);
+  const relatedClauses = uniqueByKey(index.searchItems
+    .filter((item) => item.type === "Clause")
+    .filter((item) => topic.keywords.some((keyword) => item.text.includes(keyword))))
+    .slice(0, 40);
   const root = graphNode(`topic-${topic.name}`, "StandardDocument", `${topic.name}专题`, "专题");
   const nodes = [root, ...matches.map((item, position) => graphNode(`topic-${position}`, item.type, item.title, item.code))];
   const edges = matches.map((item, position) => ({ source: root.id, target: `topic-${position}`, label: "RELATED_TO" }));
   renderSmallGraph("topicGraph", nodes, edges);
 
-  document.getElementById("topicList").innerHTML = matches.length
-    ? matches.map((item) => `
+  document.getElementById("topicList").innerHTML = relatedClauses.length
+    ? relatedClauses.map((item) => `
       <button class="result-button" data-key="${escapeAttr(item.key)}">
         <span class="type-pill type-${escapeAttr(item.type)}">${escapeHtml(TYPE_LABELS[item.type] || item.type)}</span>
         <strong>${escapeHtml(truncate(item.title, 76))}</strong>
@@ -408,7 +453,7 @@ function performSearch(query) {
       <h3>${escapeHtml(TYPE_LABELS[type] || type)} ${items.length}</h3>
       ${items.slice(0, 20).map((item) => `
         <button class="result-button" data-key="${escapeAttr(item.key)}">
-          <strong>${escapeHtml(truncate(item.title, 92))}</strong>
+          <strong>${highlightText(truncate(item.title, 92), keyword)}</strong>
           <small>${escapeHtml(item.code || "")}</small>
         </button>
       `).join("")}
@@ -422,6 +467,16 @@ function performSearch(query) {
 
 function bindSearch() {
   const input = document.getElementById("searchInput");
+  document.getElementById("popularKeywords").innerHTML = POPULAR_KEYWORDS.map((keyword) => (
+    `<button class="keyword-button" data-keyword="${escapeAttr(keyword)}">${escapeHtml(keyword)}</button>`
+  )).join("");
+  document.querySelectorAll(".keyword-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      input.value = button.dataset.keyword;
+      performSearch(input.value);
+      document.getElementById("search").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
   input.addEventListener("input", () => performSearch(input.value));
   performSearch("");
 }
@@ -611,7 +666,7 @@ function layoutLevels(nodes, edges) {
 function entitySection(title, type, items) {
   if (!items.length) return "";
   return `
-    <div class="entity-section">
+    <div class="detail-block entity-section">
       <h5>${escapeHtml(title)} ${items.length}</h5>
       <div class="entity-list">
         ${items.slice(0, 16).map((item, position) => `
@@ -627,6 +682,34 @@ function entitySection(title, type, items) {
 function detailRow(label, value) {
   const text = value === undefined || value === null || value === "" ? "无" : String(value);
   return `<div class="detail-row"><b>${escapeHtml(label)}</b><span>${escapeHtml(text)}</span></div>`;
+}
+
+function detailBlock(title, content) {
+  return `<div class="detail-block"><h5>${escapeHtml(title)}</h5>${content}</div>`;
+}
+
+async function copyClause(mode) {
+  if (!activeClause) return;
+  const title = `${activeClause.number || ""} ${activeClause.title || "条款"}`.trim();
+  const content = activeClause.content || activeClause.title || "";
+  const text = mode === "markdown"
+    ? `### ${title}\n\n**所属标准：** ${activeClause.code}\n\n${content}`
+    : content;
+  try {
+    await navigator.clipboard.writeText(text);
+    flashCopyStatus(mode === "markdown" ? "已复制 Markdown" : "已复制条款原文");
+  } catch {
+    flashCopyStatus("浏览器限制了剪贴板，请手动选中文本复制");
+  }
+}
+
+function flashCopyStatus(message) {
+  const box = document.getElementById("relationCount");
+  const previous = box.textContent;
+  box.textContent = message;
+  setTimeout(() => {
+    if (activeClause) box.textContent = previous;
+  }, 1600);
 }
 
 function graphNode(id, type, label, sub) {
@@ -712,6 +795,14 @@ function normalizeType(type) {
 function truncate(value, length) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text.length > length ? `${text.slice(0, length - 1)}…` : text;
+}
+
+function highlightText(value, keyword) {
+  const text = String(value || "");
+  if (!keyword) return escapeHtml(text);
+  const escaped = escapeHtml(text);
+  const safeKeyword = escapeHtml(keyword);
+  return escaped.replaceAll(safeKeyword, `<mark>${safeKeyword}</mark>`);
 }
 
 function stableHash(value) {

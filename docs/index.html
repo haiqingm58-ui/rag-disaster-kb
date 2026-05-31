@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
+  <div class="loading-overlay" id="loadingState">正在加载知识图谱数据……</div>
   <header class="hero" id="home">
     <nav class="top-nav" aria-label="页面导航">
       <a href="#home">首页</a>
@@ -21,12 +22,33 @@
         <p class="eyebrow">GitHub Pages 静态知识图谱</p>
         <h1>地质灾害行业标准知识图谱</h1>
         <p class="subtitle">基于 6 篇行业标准构建的可视化知识图谱。</p>
+        <div class="hero-actions" aria-label="主要操作">
+          <a class="primary-action" href="#standards">开始浏览标准</a>
+          <a class="secondary-action" href="#search">搜索知识点</a>
+          <a class="secondary-action" href="#topics">查看专题图谱</a>
+        </div>
       </div>
       <div class="stats-grid" id="homeStats" aria-label="图谱统计"></div>
     </div>
   </header>
 
   <main>
+    <section class="section guide-section" id="guide">
+      <div class="section-heading">
+        <p class="eyebrow">Guide</p>
+        <h2>如何使用</h2>
+        <p>从结构到细节逐层浏览，也可以用搜索直接定位知识点。</p>
+      </div>
+      <div class="guide-grid">
+        <div class="guide-card"><strong>1</strong><span>先看图谱模式</span></div>
+        <div class="guide-card"><strong>2</strong><span>选择标准</span></div>
+        <div class="guide-card"><strong>3</strong><span>点击章节</span></div>
+        <div class="guide-card"><strong>4</strong><span>查看条款</span></div>
+        <div class="guide-card"><strong>5</strong><span>展开术语、要求、指标</span></div>
+        <div class="guide-card"><strong>6</strong><span>使用搜索定位知识点</span></div>
+      </div>
+    </section>
+
     <section class="section" id="schema">
       <div class="section-heading">
         <p class="eyebrow">Schema</p>
@@ -89,7 +111,10 @@
       <div class="topic-tabs" id="topicTabs"></div>
       <div class="topic-body">
         <div class="topic-graph" id="topicGraph"></div>
-        <div class="topic-list" id="topicList"></div>
+        <div class="topic-list-wrap">
+          <h3>相关条款列表</h3>
+          <div class="topic-list" id="topicList"></div>
+        </div>
       </div>
     </section>
 
@@ -102,6 +127,7 @@
       <div class="search-box">
         <input id="searchInput" type="search" placeholder="输入关键词，例如：滑坡、暴雨、风险评估、监测" autocomplete="off">
       </div>
+      <div class="popular-keywords" id="popularKeywords" aria-label="热门关键词"></div>
       <div class="search-results" id="searchResults"></div>
     </section>
   </main>
