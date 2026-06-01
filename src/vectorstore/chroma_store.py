@@ -9,6 +9,8 @@ from langchain_core.embeddings import Embeddings
 
 from config import (
     CHROMA_DIR,
+    EMBEDDING_API_KEY,
+    EMBEDDING_BASE_URL,
     EMBEDDING_PROVIDER,
     EMBEDDING_MODEL,
     OLLAMA_BASE_URL,
@@ -18,6 +20,7 @@ from config import (
     COLLECTION_DOCS,
     COLLECTION_EVENTS,
     RETRIEVAL_K_DOCS,
+    validate_embedding_config,
 )
 
 _embeddings: Optional[Embeddings] = None
@@ -28,11 +31,15 @@ def _get_embeddings() -> Embeddings:
     if _embeddings is not None:
         return _embeddings
 
-    if EMBEDDING_PROVIDER == "openai":
+    validate_embedding_config()
+
+    if EMBEDDING_PROVIDER in {"openai", "openai_compatible"}:
+        api_key = EMBEDDING_API_KEY or OPENAI_API_KEY
+        base_url = EMBEDDING_BASE_URL or OPENAI_BASE_URL
         _embeddings = OpenAIEmbeddings(
             model=EMBEDDING_MODEL,
-            api_key=OPENAI_API_KEY,
-            base_url=OPENAI_BASE_URL,
+            api_key=api_key,
+            base_url=base_url,
         )
     else:
         _embeddings = OllamaEmbeddings(
@@ -41,6 +48,25 @@ def _get_embeddings() -> Embeddings:
         )
 
     return _embeddings
+
+
+def embedding_config_status() -> dict:
+    """Return a lightweight embedding configuration status without making network calls."""
+    try:
+        validate_embedding_config()
+        return {
+            "ready": True,
+            "provider": EMBEDDING_PROVIDER,
+            "model": OLLAMA_EMBED_MODEL if EMBEDDING_PROVIDER == "ollama" else EMBEDDING_MODEL,
+            "message": "embedding 配置完整",
+        }
+    except Exception as exc:
+        return {
+            "ready": False,
+            "provider": EMBEDDING_PROVIDER,
+            "model": OLLAMA_EMBED_MODEL if EMBEDDING_PROVIDER == "ollama" else EMBEDDING_MODEL,
+            "message": str(exc),
+        }
 
 
 def get_chroma(collection_name: str) -> Chroma:

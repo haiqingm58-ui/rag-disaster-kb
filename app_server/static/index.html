@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>地质灾害知识图谱 RAG 问答系统</title>
+  <link rel="stylesheet" href="/static/assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>地质灾害知识图谱 RAG 问答系统</h1>
+      <p>标准图谱、专业文档、实时灾害数据统一检索</p>
+    </div>
+    <div id="statusTags" class="status-tags"></div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar left">
+      <button id="newChat" class="primary">新建对话</button>
+      <button id="diagnosticsBtn">系统诊断</button>
+      <section>
+        <h2>文档上传</h2>
+        <input id="fileInput" type="file" accept=".pdf,.txt,.md">
+        <button id="uploadBtn">上传入库</button>
+        <div id="uploadState" class="hint"></div>
+      </section>
+      <section>
+        <h2>知识库文档</h2>
+        <div id="docList" class="compact-list"></div>
+      </section>
+    </aside>
+
+    <section class="chat-panel">
+      <div id="messages" class="messages"></div>
+      <form id="chatForm" class="composer">
+        <textarea id="question" rows="2" placeholder="输入问题，例如：如何预防滑坡灾害？最近有哪些地震？"></textarea>
+        <button type="submit">发送</button>
+      </form>
+    </section>
+
+    <aside class="sidebar right">
+      <div class="side-tabs">
+        <button data-side-tab="sources" class="active">Sources</button>
+        <button data-side-tab="graphContext">Graph</button>
+        <button data-side-tab="events">Events</button>
+        <button data-side-tab="debugPane">Debug</button>
+      </div>
+      <section id="sourcesPane" class="side-pane active">
+        <h2>RAG 溯源</h2>
+        <div id="sources" class="stack"></div>
+      </section>
+      <section id="graphContextPane" class="side-pane">
+        <h2>知识图谱节点</h2>
+        <div id="graphContext" class="stack"></div>
+      </section>
+      <section id="eventsPane" class="side-pane">
+        <h2>实时灾害事件</h2>
+        <div id="events" class="stack"></div>
+      </section>
+      <section id="debugPanePane" class="side-pane">
+        <h2>检索调试信息</h2>
+        <pre id="debugInfo">{}</pre>
+      </section>
+    </aside>
+  </main>
+
+  <section class="knowledge">
+    <nav class="tabs">
+      <button data-tab="overview" class="active">标准总览</button>
+      <button data-tab="search">搜索知识点</button>
+      <button data-tab="events">实时灾害</button>
+    </nav>
+    <div id="tabContent"></div>
+  </section>
+
+  <section id="diagnosticsPanel" class="diagnostics-panel hidden">
+    <div class="diagnostics-header">
+      <h2>系统诊断</h2>
+      <button id="closeDiagnostics">关闭</button>
+    </div>
+    <div id="diagnosticsContent" class="diagnostics-grid"></div>
+  </section>
+
+  <script src="/static/assets/app.js"></script>
+</body>
+</html>

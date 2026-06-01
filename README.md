@@ -158,6 +158,57 @@ bash start_all.sh
 http://localhost:8501
 ```
 
+## FastAPI Web 入口
+
+本项目新增了轻量 FastAPI Web 应用，保留原有 Streamlit 启动方式不变。FastAPI 入口整合了知识图谱、RAG 问答、实时灾害数据、文档上传和来源追踪，适合部署到 2 核 2G 的云服务器。
+
+本地启动：
+
+```bash
+uvicorn app_server.main:app --host 0.0.0.0 --port 8000
+```
+
+或：
+
+```bash
+python -m app_server.main
+```
+
+浏览器访问：
+
+```text
+http://localhost:8000
+```
+
+常用 API：
+
+- `GET /api/health`
+- `GET /api/diagnostics`
+- `POST /api/chat`
+- `GET /api/graph/summary`
+- `GET /api/graph/search?q=滑坡`
+- `GET /api/disasters/events`
+- `POST /api/documents/upload`
+- `GET /api/documents`
+
+部署示例见 `deploy/README_DEPLOY.md`。生产环境请使用 `.env` 配置 DeepSeek API Key，不要提交 `.env`。
+
+### FastAPI 部署前检查
+
+```bash
+python scripts/check_server_ready.py
+python -m pytest tests/test_fastapi_app.py -q
+uvicorn app_server.main:app --host 127.0.0.1 --port 8000 --workers 1
+```
+
+浏览器或命令行检查：
+
+```text
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/api/health
+http://127.0.0.1:8000/api/diagnostics
+```
+
 ## 使用示例
 
 可以提问：

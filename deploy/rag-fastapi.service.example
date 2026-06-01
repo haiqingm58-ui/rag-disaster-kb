@@ -1,0 +1,18 @@
+[Unit]
+Description=Geological Disaster RAG FastAPI
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/rag-disaster-kb
+EnvironmentFile=/opt/rag-disaster-kb/.env
+ExecStart=/opt/rag-disaster-kb/venv/bin/uvicorn app_server.main:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

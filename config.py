@@ -28,6 +28,8 @@ OLLAMA_EMBED_MODEL = os.getenv(
     os.getenv("LOCAL_EMBEDDING_MODEL", "nomic-embed-text:v1.5"),
 )
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
+EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL", "")
 
 # Backward-compatible aliases used by older modules/scripts.
 EMBEDDING_BACKEND = "local" if EMBEDDING_PROVIDER == "ollama" else EMBEDDING_PROVIDER
@@ -51,6 +53,20 @@ LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 LLM_MODEL = DEEPSEEK_MODEL if LLM_PROVIDER == "deepseek" else LOCAL_LLM_MODEL
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", DEEPSEEK_API_KEY if LLM_PROVIDER == "deepseek" else "not-needed")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", DEEPSEEK_BASE_URL if LLM_PROVIDER == "deepseek" else LOCAL_LLM_BASE_URL)
+
+
+def validate_embedding_config() -> None:
+    """Raise a friendly error for unsupported or incomplete embedding configuration."""
+    if EMBEDDING_PROVIDER not in {"ollama", "openai", "openai_compatible"}:
+        raise ValueError(
+            f"不支持的 EMBEDDING_PROVIDER: {EMBEDDING_PROVIDER}。"
+            "支持值：ollama, openai_compatible。"
+        )
+    if EMBEDDING_PROVIDER == "openai_compatible":
+        if not EMBEDDING_API_KEY.strip():
+            raise ValueError("EMBEDDING_API_KEY 未配置，无法使用远程 embedding。")
+        if not EMBEDDING_BASE_URL.strip():
+            raise ValueError("EMBEDDING_BASE_URL 未配置，无法使用远程 embedding。")
 
 
 def validate_llm_config() -> None:
@@ -129,6 +145,15 @@ SOCIAL_SIGNALS_CACHE_FILE = CACHE_DIR / "social_signals.json"
 EVENT_DEDUP_TIME_WINDOW_MINUTES = int(os.getenv("EVENT_DEDUP_TIME_WINDOW_MINUTES", "30"))
 EVENT_DEDUP_DISTANCE_KM = float(os.getenv("EVENT_DEDUP_DISTANCE_KM", "50"))
 EVENT_DEDUP_MAGNITUDE_DELTA = float(os.getenv("EVENT_DEDUP_MAGNITUDE_DELTA", "0.3"))
+
+# FastAPI deployment settings
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
+APP_PORT = int(os.getenv("APP_PORT", "8000"))
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "30"))
+GRAPH_TOP_K = int(os.getenv("GRAPH_TOP_K", "80"))
+DISASTER_CACHE_TTL_SECONDS = int(os.getenv("DISASTER_CACHE_TTL_SECONDS", "600"))
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # Ensure directories exist
 for d in [DOCUMENTS_DIR, CACHE_DIR, UPLOADS_DIR, MARKDOWN_DIR, REPORTS_DIR, REPORTS_DIR / "images", CHROMA_DIR]:
