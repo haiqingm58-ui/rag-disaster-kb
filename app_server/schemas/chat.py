@@ -18,6 +18,10 @@ class SourceItem(BaseModel):
     title: str
     content: str
     score: float | None = None
+    source: str | None = None
+    standard: str | None = None
+    clause: str | None = None
+    snippet: str | None = None
 
 
 class ChatResponse(BaseModel):

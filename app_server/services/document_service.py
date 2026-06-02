@@ -15,6 +15,11 @@ from src.vectorstore.chroma_store import add_documents, delete_by_source, embedd
 
 
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
+ALLOWED_MIME_TYPES = {
+    ".pdf": {"application/pdf"},
+    ".txt": {"text/plain", "application/octet-stream"},
+    ".md": {"text/markdown", "text/plain", "application/octet-stream"},
+}
 logger = logging.getLogger(__name__)
 
 
@@ -28,6 +33,9 @@ async def save_and_ingest(file: UploadFile) -> dict:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise ValueError("仅支持 PDF、TXT、MD 文件")
+    content_type = (file.content_type or "").split(";", 1)[0].strip().lower()
+    if content_type and content_type not in ALLOWED_MIME_TYPES[suffix]:
+        raise ValueError(f"文件类型不匹配：{suffix} 不支持 {content_type}")
 
     file.file.seek(0, 2)
     size = file.file.tell()
@@ -80,3 +88,13 @@ def list_documents() -> list[dict]:
 
 def delete_document(source: str) -> dict:
     return {"source": source, "deleted_chunks": delete_by_source(COLLECTION_DOCS, source)}
+
+
+def rebuild_document_index() -> dict:
+    documents = list_documents()
+    return {
+        "status": "ok",
+        "message": "文档索引由 Chroma 持久化维护。当前已完成索引状态检查；如需彻底重建，请重新上传源文档或执行离线重建脚本。",
+        "documents": len(documents),
+        "chunks": sum(item.get("chunks", 0) for item in documents),
+    }

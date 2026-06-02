@@ -3,85 +3,77 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>地质灾害知识图谱 RAG 问答系统</title>
-  <link rel="stylesheet" href="/static/assets/style.css">
+  <title>登录 - 地质灾害知识图谱与智能问答系统</title>
+  <link rel="stylesheet" href="/static/assets/style.css?v=auth-2">
 </head>
-<body>
-  <header class="topbar">
-    <div>
-      <h1>地质灾害知识图谱 RAG 问答系统</h1>
-      <p>标准图谱、专业文档、实时灾害数据统一检索</p>
-    </div>
-    <div id="statusTags" class="status-tags"></div>
-  </header>
-
-  <main class="layout">
-    <aside class="sidebar left">
-      <button id="newChat" class="primary">新建对话</button>
-      <button id="diagnosticsBtn">系统诊断</button>
-      <section>
-        <h2>文档上传</h2>
-        <input id="fileInput" type="file" accept=".pdf,.txt,.md">
-        <button id="uploadBtn">上传入库</button>
-        <div id="uploadState" class="hint"></div>
-      </section>
-      <section>
-        <h2>知识库文档</h2>
-        <div id="docList" class="compact-list"></div>
-      </section>
-    </aside>
-
-    <section class="chat-panel">
-      <div id="messages" class="messages"></div>
-      <form id="chatForm" class="composer">
-        <textarea id="question" rows="2" placeholder="输入问题，例如：如何预防滑坡灾害？最近有哪些地震？"></textarea>
-        <button type="submit">发送</button>
-      </form>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-visual" aria-label="地质灾害行业标准知识图谱概览">
+      <img src="/static/assets/login-hero.png" alt="地质灾害行业标准知识图谱数据概览">
     </section>
 
-    <aside class="sidebar right">
-      <div class="side-tabs">
-        <button data-side-tab="sources" class="active">Sources</button>
-        <button data-side-tab="graphContext">Graph</button>
-        <button data-side-tab="events">Events</button>
-        <button data-side-tab="debugPane">Debug</button>
+    <section class="login-panel" aria-label="系统登录">
+      <div class="login-brand">
+        <span>GeoRisk Knowledge AI</span>
+        <h1>地质灾害知识图谱与智能问答系统</h1>
+        <p>洪水、山地滑坡、标准图谱、实时事件与专业文档统一检索。</p>
       </div>
-      <section id="sourcesPane" class="side-pane active">
-        <h2>RAG 溯源</h2>
-        <div id="sources" class="stack"></div>
-      </section>
-      <section id="graphContextPane" class="side-pane">
-        <h2>知识图谱节点</h2>
-        <div id="graphContext" class="stack"></div>
-      </section>
-      <section id="eventsPane" class="side-pane">
-        <h2>实时灾害事件</h2>
-        <div id="events" class="stack"></div>
-      </section>
-      <section id="debugPanePane" class="side-pane">
-        <h2>检索调试信息</h2>
-        <pre id="debugInfo">{}</pre>
-      </section>
-    </aside>
+
+      <form id="loginForm" class="login-form">
+        <label>
+          用户名
+          <input id="username" name="username" type="text" autocomplete="username" placeholder="请输入用户名" required>
+        </label>
+        <label>
+          密码
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required>
+        </label>
+        <button id="loginSubmit" type="submit" class="login-submit">登录进入系统</button>
+        <p id="loginMessage" class="login-message" role="status"></p>
+      </form>
+    </section>
   </main>
 
-  <section class="knowledge">
-    <nav class="tabs">
-      <button data-tab="overview" class="active">标准总览</button>
-      <button data-tab="search">搜索知识点</button>
-      <button data-tab="events">实时灾害</button>
-    </nav>
-    <div id="tabContent"></div>
-  </section>
+  <script>
+    const form = document.getElementById("loginForm");
+    const message = document.getElementById("loginMessage");
+    const submit = document.getElementById("loginSubmit");
 
-  <section id="diagnosticsPanel" class="diagnostics-panel hidden">
-    <div class="diagnostics-header">
-      <h2>系统诊断</h2>
-      <button id="closeDiagnostics">关闭</button>
-    </div>
-    <div id="diagnosticsContent" class="diagnostics-grid"></div>
-  </section>
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
+      if (!username || !password) {
+        message.textContent = "请输入用户名和密码。";
+        return;
+      }
 
-  <script src="/static/assets/app.js"></script>
+      submit.disabled = true;
+      submit.textContent = "正在登录...";
+      message.textContent = "";
+
+      try {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({username, password})
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.detail || "登录失败，请检查用户名和密码。");
+        }
+        localStorage.setItem("rag_access_token", data.access_token);
+        localStorage.setItem("rag_token_expires_at", String(data.expires_at || ""));
+        localStorage.setItem("rag_username", data.user?.username || username);
+        localStorage.setItem("rag_user_role", data.user?.role || "admin");
+        window.location.href = "/main.html";
+      } catch (error) {
+        message.textContent = error.message;
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "登录进入系统";
+      }
+    });
+  </script>
 </body>
 </html>

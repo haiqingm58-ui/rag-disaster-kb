@@ -4,12 +4,13 @@ import logging
 import time
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app_server.api import chat, diagnostics, disasters, documents, graph, health
+from app_server.api import auth, chat, diagnostics, disasters, documents, graph, health
 from app_server.logging_config import setup_logging
 from app_server.settings import settings
 
@@ -55,14 +56,31 @@ def create_app() -> FastAPI:
         response.headers["X-Process-Time-ms"] = str(elapsed_ms)
         return response
 
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"ok": False, "detail": exc.detail, "code": exc.status_code},
+            headers=getattr(exc, "headers", None),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        logger.warning("validation error path=%s method=%s errors=%s", request.url.path, request.method, exc.errors())
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "detail": "请求参数错误。", "errors": exc.errors(), "code": 422},
+        )
+
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         logger.exception("unhandled error path=%s method=%s", request.url.path, request.method)
         return JSONResponse(
             status_code=500,
-            content={"detail": "服务器内部错误，请查看日志或稍后重试。"},
+            content={"ok": False, "detail": "服务器内部错误，请查看日志或稍后重试。", "code": 500},
         )
 
+    app.include_router(auth.router, prefix="/api")
     app.include_router(health.router, prefix="/api")
     app.include_router(diagnostics.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
@@ -75,6 +93,10 @@ def create_app() -> FastAPI:
     @app.get("/")
     def index() -> FileResponse:
         return FileResponse("app_server/static/index.html")
+
+    @app.get("/main.html")
+    def main_page() -> FileResponse:
+        return FileResponse("app_server/static/main.html")
 
     return app
 

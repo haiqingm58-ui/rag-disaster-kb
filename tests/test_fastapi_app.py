@@ -8,6 +8,13 @@ from app_server.main import app
 client = TestClient(app)
 
 
+def auth_headers() -> dict[str, str]:
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_health_returns_200():
     response = client.get("/api/health")
     assert response.status_code == 200
@@ -18,8 +25,29 @@ def test_health_returns_200():
     assert "embedding_ready" in data
 
 
-def test_diagnostics_returns_200():
+def test_login_returns_jwt_token():
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["token_type"] == "bearer"
+    assert data["access_token"].count(".") == 2
+    assert data["user"]["username"] == "admin"
+
+
+def test_login_rejects_bad_password():
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "wrong"})
+    assert response.status_code == 401
+    assert "用户名或密码错误" in response.json()["detail"]
+
+
+def test_diagnostics_requires_login():
     response = client.get("/api/diagnostics")
+    assert response.status_code == 401
+    assert "请先登录" in response.json()["detail"]
+
+
+def test_diagnostics_returns_200_with_auth():
+    response = client.get("/api/diagnostics", headers=auth_headers())
     assert response.status_code == 200
     data = response.json()
     assert "app" in data
@@ -28,7 +56,7 @@ def test_diagnostics_returns_200():
 
 
 def test_diagnostics_does_not_leak_api_key():
-    response = client.get("/api/diagnostics")
+    response = client.get("/api/diagnostics", headers=auth_headers())
     assert response.status_code == 200
     text = response.text.lower()
     assert "deepseek_api_key" not in text
@@ -75,15 +103,26 @@ def test_chat_mock_llm_returns_stable_shape(monkeypatch):
 
 
 def test_documents_returns_list():
-    response = client.get("/api/documents")
+    response = client.get("/api/documents", headers=auth_headers())
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+
+def test_documents_requires_login():
+    response = client.get("/api/documents")
+    assert response.status_code == 401
 
 
 def test_upload_illegal_suffix_returns_400():
     response = client.post(
         "/api/documents/upload",
+        headers=auth_headers(),
         files={"file": ("bad.exe", b"hello", "application/octet-stream")},
     )
     assert response.status_code == 400
     assert "仅支持 PDF、TXT、MD" in response.json()["detail"]
+
+
+def test_disaster_sync_requires_login():
+    response = client.post("/api/disasters/sync")
+    assert response.status_code == 401

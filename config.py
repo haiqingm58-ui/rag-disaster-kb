@@ -57,10 +57,10 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", DEEPSEEK_BASE_URL if LLM_PROVIDER
 
 def validate_embedding_config() -> None:
     """Raise a friendly error for unsupported or incomplete embedding configuration."""
-    if EMBEDDING_PROVIDER not in {"ollama", "openai", "openai_compatible"}:
+    if EMBEDDING_PROVIDER not in {"ollama", "openai", "openai_compatible", "hash"}:
         raise ValueError(
             f"不支持的 EMBEDDING_PROVIDER: {EMBEDDING_PROVIDER}。"
-            "支持值：ollama, openai_compatible。"
+            "支持值：ollama, openai_compatible, hash。"
         )
     if EMBEDDING_PROVIDER == "openai_compatible":
         if not EMBEDDING_API_KEY.strip():

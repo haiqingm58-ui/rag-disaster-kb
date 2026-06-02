@@ -35,10 +35,19 @@ class AppSettings:
     log_level: str = os.getenv("LOG_LEVEL", "INFO").upper()
     log_to_file: bool = _bool_env("LOG_TO_FILE", True)
     cors_origins_raw: str = os.getenv("CORS_ORIGINS", "")
+    auth_username: str = os.getenv("AUTH_USERNAME", "admin")
+    auth_password: str = os.getenv("AUTH_PASSWORD", "admin123")
+    jwt_secret: str = os.getenv("JWT_SECRET", "change-this-dev-secret")
+    jwt_expire_minutes: int = _int_env("JWT_EXPIRE_MINUTES", 480)
+    chat_rate_limit_per_minute: int = _int_env("CHAT_RATE_LIMIT_PER_MINUTE", 30)
 
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def jwt_expire_seconds(self) -> int:
+        return self.jwt_expire_minutes * 60
 
     @property
     def is_production(self) -> bool:

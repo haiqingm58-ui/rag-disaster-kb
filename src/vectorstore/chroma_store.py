@@ -1,3 +1,6 @@
+import hashlib
+import math
+import re
 from typing import List, Optional, Tuple
 
 from langchain_chroma import Chroma
@@ -26,6 +29,44 @@ from config import (
 _embeddings: Optional[Embeddings] = None
 
 
+class HashEmbeddings(Embeddings):
+    """Small deterministic embedding backend for low-memory deployments.
+
+    It is not a replacement for a semantic embedding model, but it gives Chroma
+    a useful keyword/character-ngram vector when Ollama or a remote embedding
+    API is unavailable.
+    """
+
+    def __init__(self, dimensions: int = 384) -> None:
+        self.dimensions = dimensions
+
+    def _tokens(self, text: str) -> list[str]:
+        lowered = text.lower()
+        words = re.findall(r"[a-z0-9]+", lowered)
+        chars = [ch for ch in lowered if "\u4e00" <= ch <= "\u9fff"]
+        grams = chars[:]
+        grams.extend("".join(chars[i:i + 2]) for i in range(max(0, len(chars) - 1)))
+        grams.extend("".join(chars[i:i + 3]) for i in range(max(0, len(chars) - 2)))
+        return words + grams
+
+    def _embed(self, text: str) -> list[float]:
+        vec = [0.0] * self.dimensions
+        for token in self._tokens(text):
+            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+            value = int.from_bytes(digest, "big")
+            index = value % self.dimensions
+            sign = 1.0 if (value >> 8) & 1 else -1.0
+            vec[index] += sign
+        norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+        return [v / norm for v in vec]
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._embed(text) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed(text)
+
+
 def _get_embeddings() -> Embeddings:
     global _embeddings
     if _embeddings is not None:
@@ -33,7 +74,9 @@ def _get_embeddings() -> Embeddings:
 
     validate_embedding_config()
 
-    if EMBEDDING_PROVIDER in {"openai", "openai_compatible"}:
+    if EMBEDDING_PROVIDER == "hash":
+        _embeddings = HashEmbeddings()
+    elif EMBEDDING_PROVIDER in {"openai", "openai_compatible"}:
         api_key = EMBEDDING_API_KEY or OPENAI_API_KEY
         base_url = EMBEDDING_BASE_URL or OPENAI_BASE_URL
         _embeddings = OpenAIEmbeddings(
@@ -57,14 +100,26 @@ def embedding_config_status() -> dict:
         return {
             "ready": True,
             "provider": EMBEDDING_PROVIDER,
-            "model": OLLAMA_EMBED_MODEL if EMBEDDING_PROVIDER == "ollama" else EMBEDDING_MODEL,
+            "model": (
+                OLLAMA_EMBED_MODEL
+                if EMBEDDING_PROVIDER == "ollama"
+                else "hash-384"
+                if EMBEDDING_PROVIDER == "hash"
+                else EMBEDDING_MODEL
+            ),
             "message": "embedding 配置完整",
         }
     except Exception as exc:
         return {
             "ready": False,
             "provider": EMBEDDING_PROVIDER,
-            "model": OLLAMA_EMBED_MODEL if EMBEDDING_PROVIDER == "ollama" else EMBEDDING_MODEL,
+            "model": (
+                OLLAMA_EMBED_MODEL
+                if EMBEDDING_PROVIDER == "ollama"
+                else "hash-384"
+                if EMBEDDING_PROVIDER == "hash"
+                else EMBEDDING_MODEL
+            ),
             "message": str(exc),
         }
 

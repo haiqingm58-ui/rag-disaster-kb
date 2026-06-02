@@ -29,6 +29,32 @@ TYPE_TO_COLLECTION = {
     "方法": "methods",
     "章节": "chapters",
 }
+DOMAIN_TERMS = (
+    "滑坡",
+    "泥石流",
+    "崩塌",
+    "洪水",
+    "暴雨",
+    "山洪",
+    "风险",
+    "评估",
+    "危险性",
+    "监测",
+    "预警",
+    "应急",
+    "抗滑桩",
+    "挡土墙",
+    "排水",
+    "治理",
+    "防治",
+    "勘查",
+    "设计",
+    "施工",
+    "要求",
+    "指标",
+    "标准",
+    "条款",
+)
 
 
 def _first_existing(paths: list[Path]) -> Path | None:
@@ -37,6 +63,19 @@ def _first_existing(paths: list[Path]) -> Path | None:
 
 def _norm(text: Any) -> str:
     return str(text or "").lower()
+
+
+def _query_terms(query: str) -> list[str]:
+    query_norm = query.lower().strip()
+    terms = [w for w in query_norm.split() if w]
+    terms.extend(term.lower() for term in DOMAIN_TERMS if term in query)
+    if not terms and query_norm:
+        terms.append(query_norm)
+    unique_terms: list[str] = []
+    for term in terms:
+        if term and term not in unique_terms:
+            unique_terms.append(term)
+    return unique_terms
 
 
 class GraphService:
@@ -85,7 +124,7 @@ class GraphService:
         return mapping
 
     def summary(self) -> dict[str, int]:
-        return {
+        counts = {
             "standards": len(self.data.get("standards", [])),
             "chapters": len(self.data.get("chapters", [])),
             "clauses": len(self.data.get("clauses", [])),
@@ -94,10 +133,13 @@ class GraphService:
             "indicators": len(self.data.get("indicators", [])),
             "methods": len(self.data.get("methods", [])),
         }
+        counts["nodes"] = sum(counts.values())
+        counts["relationships"] = len(self.data.get("relationships", []))
+        return counts
 
     def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         limit = min(max(limit, 1), settings.graph_top_k)
-        words = [w for w in query.lower().split() if w] or [query.lower()]
+        words = _query_terms(query)
         results = []
         for item in self.search_index:
             haystack = _norm(" ".join([item.get("text", ""), item.get("title", ""), item.get("code", "")]))
@@ -178,6 +220,8 @@ class GraphService:
                 "label": item.get("title") or item.get("text", "")[:80],
                 "type": item.get("type", ""),
                 "code": item.get("code", ""),
+                "number": item.get("number", ""),
+                "clause_number": item.get("clause_number", ""),
                 "content": item.get("text", ""),
                 "relations": (detail or {}).get("relations", [])[:8],
             })

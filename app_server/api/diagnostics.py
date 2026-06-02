@@ -7,9 +7,10 @@ import sys
 import time
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app_server.settings import settings
+from app_server.security import CurrentUser, require_user
 from config import (
     BASE_DIR,
     CACHE_DIR,
@@ -65,7 +66,7 @@ def _recommendations(paths: dict, embedding_ready: bool) -> list[str]:
 
 
 @router.get("/diagnostics")
-def diagnostics() -> dict:
+def diagnostics(user: CurrentUser = Depends(require_user)) -> dict:
     graph_candidates = [BASE_DIR / "docs/data/graph_data.json", BASE_DIR / "exports/standard_kg_browser/graph_data.json"]
     search_candidates = [BASE_DIR / "docs/data/search_index.json", BASE_DIR / "exports/standard_kg_browser/search_index.json"]
     paths = {

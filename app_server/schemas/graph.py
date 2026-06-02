@@ -13,6 +13,8 @@ class GraphSummary(BaseModel):
     requirements: int
     indicators: int
     methods: int
+    nodes: int = 0
+    relationships: int = 0
 
 
 class GraphSearchResult(BaseModel):

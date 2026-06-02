@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>地质灾害知识图谱与智能问答系统</title>
+  <link rel="stylesheet" href="/static/assets/style.css?v=dashboard-2">
+</head>
+<body class="app-page">
+  <header class="app-header">
+    <a class="brand" href="#home" data-nav-link="home" aria-label="返回首页">
+      <span class="brand-mark">GR</span>
+      <span>
+        <strong>地质灾害知识图谱与智能问答系统</strong>
+        <small>GeoRisk Knowledge AI</small>
+      </span>
+    </a>
+    <button id="navToggle" class="nav-toggle" type="button" aria-label="展开导航">☰</button>
+    <nav id="topNav" class="top-nav" aria-label="主导航">
+      <button data-page="home" class="active">首页</button>
+      <button data-page="chat">智能问答</button>
+      <button data-page="graph">知识图谱</button>
+      <button data-page="standards">标准库</button>
+      <button data-page="events">灾害事件</button>
+      <button data-page="documents">文档管理</button>
+      <button data-page="about">系统说明</button>
+    </nav>
+    <div class="user-box">
+      <span id="userState">游客</span>
+      <a id="loginLink" class="text-link" href="/">登录</a>
+      <button id="logoutBtn" class="ghost hidden" type="button">退出</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section id="page-home" class="page active">
+      <div class="hero-panel">
+        <div class="hero-copy">
+          <span class="eyebrow">地质灾害标准 · 知识图谱 · RAG 问答</span>
+          <h1>地质灾害知识图谱与智能问答系统</h1>
+          <p>整合地质灾害标准、知识点、实时灾害事件与智能问答，帮助用户快速查询灾害知识、标准依据和附近风险信息。</p>
+          <div class="hero-actions">
+            <button class="primary" data-jump="chat">开始智能问答</button>
+            <button class="secondary" data-jump="graph">浏览知识图谱</button>
+            <button class="secondary" data-jump="events">查询灾害事件</button>
+          </div>
+        </div>
+        <div class="hero-metrics" id="overviewCards"></div>
+      </div>
+
+      <section class="panel usage-panel">
+        <div class="section-title">
+          <div>
+            <span class="eyebrow">Recommended Flow</span>
+            <h2>推荐使用路径</h2>
+          </div>
+        </div>
+        <div id="usagePathCards" class="usage-path-grid"></div>
+      </section>
+
+      <div class="content-grid two">
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow">Quick Search</span>
+              <h2>知识快速检索</h2>
+            </div>
+          </div>
+          <form id="homeSearchForm" class="search-bar">
+            <input id="homeSearchInput" type="search" placeholder="输入关键词，例如：滑坡、暴雨、抗滑桩">
+            <button type="submit">搜索</button>
+          </form>
+          <div id="hotKeywords" class="keyword-row"></div>
+          <div id="searchResults" class="grouped-results"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow">Focus</span>
+              <h2>洪水与山地滑坡关注</h2>
+            </div>
+            <button class="ghost" data-jump="events">查看事件</button>
+          </div>
+          <div id="homeEvents" class="event-mini-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="page-chat" class="page">
+      <div class="qa-layout">
+        <section class="panel qa-panel">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow">RAG Assistant</span>
+              <h2>智能问答</h2>
+            </div>
+            <button id="newChat" class="ghost" type="button">新建会话</button>
+          </div>
+          <div id="messages" class="messages"></div>
+          <form id="chatForm" class="composer">
+            <textarea id="question" rows="3" placeholder="请输入专业问题，例如：滑坡风险评估应关注哪些监测预警指标？"></textarea>
+            <button type="submit">发送</button>
+          </form>
+        </section>
+        <aside class="qa-aside">
+          <section class="panel">
+            <h3>检索过程摘要</h3>
+            <div id="retrievalSummary" class="retrieval-summary">
+              <div class="empty-state">发送问题后显示本次检索过程。</div>
+            </div>
+          </section>
+          <section class="panel">
+            <h3>参考来源</h3>
+            <div id="sources" class="source-list"></div>
+          </section>
+          <section class="panel">
+            <h3>相关问题</h3>
+            <div id="relatedQuestions" class="question-list"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section id="page-graph" class="page">
+      <div class="content-grid graph-grid">
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow">Knowledge Graph</span>
+              <h2>知识图谱浏览</h2>
+            </div>
+          </div>
+          <div class="legend">
+            <span><i class="dot standard"></i>标准</span>
+            <span><i class="dot clause"></i>条款</span>
+            <span><i class="dot term"></i>术语</span>
+            <span><i class="dot method"></i>工程措施</span>
+            <span><i class="dot indicator"></i>监测预警</span>
+          </div>
+          <div class="filter-grid">
+            <select id="graphStandardFilter"><option value="">全部标准</option></select>
+            <select id="graphTypeFilter">
+              <option value="">全部节点类型</option>
+              <option value="标准">标准</option>
+              <option value="章节">章节</option>
+              <option value="条款">条款</option>
+              <option value="术语">术语</option>
+              <option value="要求">要求</option>
+              <option value="指标">指标</option>
+              <option value="方法">方法</option>
+            </select>
+            <select id="graphRelationFilter">
+              <option value="">全部关系类型</option>
+              <option value="BELONGS_TO">归属标准</option>
+              <option value="DEFINES">定义</option>
+              <option value="HAS_REQUIREMENT">规范要求</option>
+              <option value="HAS_INDICATOR">指标参数</option>
+              <option value="USES_METHOD">工程措施</option>
+            </select>
+            <select id="graphDisasterFilter">
+              <option value="">全部灾害类型</option>
+              <option value="滑坡">滑坡</option>
+              <option value="泥石流">泥石流</option>
+              <option value="崩塌">崩塌</option>
+              <option value="洪水">洪水</option>
+              <option value="暴雨">暴雨</option>
+            </select>
+          </div>
+          <form id="graphSearchForm" class="search-bar compact">
+            <input id="graphSearchInput" type="search" placeholder="搜索图谱节点">
+            <button type="submit">检索</button>
+          </form>
+          <div id="graphNodes" class="node-list"></div>
+        </section>
+        <aside class="panel detail-panel">
+          <h3>节点详情</h3>
+          <div id="nodeDetail" class="node-detail empty">请选择左侧节点查看详情。</div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="page-standards" class="page">
+      <section class="panel">
+        <div class="section-title">
+          <div>
+            <span class="eyebrow">Standards</span>
+            <h2>标准库</h2>
+          </div>
+          <form id="standardSearchForm" class="inline-search">
+            <input id="standardSearchInput" type="search" placeholder="搜索标准编号或名称">
+            <button type="submit">搜索</button>
+          </form>
+        </div>
+        <div id="standardsList" class="standards-list"></div>
+      </section>
+    </section>
+
+    <section id="page-events" class="page">
+      <section class="panel">
+        <div class="section-title">
+          <div>
+            <span class="eyebrow">Realtime Events</span>
+            <h2>灾害事件</h2>
+          </div>
+          <button id="syncEventsBtn" class="ghost" type="button">同步灾害数据</button>
+        </div>
+        <div id="eventsGate" class="admin-gate hidden"></div>
+        <div class="filter-grid events-filters">
+          <select id="eventTypeFilter">
+            <option value="">全部类型</option>
+            <option value="Flood">洪水 / 暴雨</option>
+            <option value="Landslide">山地滑坡</option>
+            <option value="Earthquake">地震</option>
+          </select>
+          <select id="eventDaysFilter">
+            <option value="7">近 7 天</option>
+            <option value="30">近 30 天</option>
+            <option value="90">近 90 天</option>
+            <option value="365" selected>近 1 年</option>
+          </select>
+          <select id="eventRadiusFilter">
+            <option value="">不限距离</option>
+            <option value="50">50 公里内</option>
+            <option value="200">200 公里内</option>
+            <option value="500">500 公里内</option>
+          </select>
+          <input id="eventLatInput" type="number" step="0.000001" placeholder="中心纬度">
+          <input id="eventLonInput" type="number" step="0.000001" placeholder="中心经度">
+          <select id="eventSourceFilter">
+            <option value="">全部来源</option>
+            <option value="USGS">USGS</option>
+            <option value="GDACS">GDACS</option>
+            <option value="CENC">CENC</option>
+          </select>
+        </div>
+        <div class="map-placeholder" id="eventMap"></div>
+        <div id="eventList" class="event-list"></div>
+      </section>
+    </section>
+
+    <section id="page-documents" class="page">
+      <div class="content-grid two">
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow">Document Pipeline</span>
+              <h2>文档上传入库</h2>
+            </div>
+          </div>
+          <div id="authNotice" class="notice hidden">文档管理需要登录后使用。</div>
+          <div id="documentsGate" class="admin-gate hidden"></div>
+          <div class="upload-steps" id="uploadSteps">
+            <span data-step="select">选择文件</span>
+            <span data-step="upload">上传</span>
+            <span data-step="parse">解析</span>
+            <span data-step="split">切分</span>
+            <span data-step="vector">向量化</span>
+            <span data-step="store">入库</span>
+          </div>
+          <input id="fileInput" type="file" accept=".pdf,.txt,.md">
+          <p class="hint">支持 PDF、TXT、MD，单文件大小不超过后端配置的上传限制。</p>
+          <div class="button-row">
+            <button id="uploadBtn" class="primary" type="button">上传入库</button>
+            <button id="rebuildIndexBtn" class="secondary" type="button">重新构建索引</button>
+          </div>
+          <div id="uploadState" class="state-text"></div>
+        </section>
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow">Library</span>
+              <h2>知识库文档</h2>
+            </div>
+            <button id="refreshDocsBtn" class="ghost" type="button">刷新</button>
+          </div>
+          <div id="ragStatusCards" class="rag-status-grid"></div>
+          <div id="docList" class="doc-table"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="page-about" class="page">
+      <section class="panel about-panel">
+        <span class="eyebrow">System</span>
+        <h2>系统说明</h2>
+        <p>本系统面向地质灾害知识检索和专业问答，重点关注洪水、暴雨诱发灾害、山地滑坡、泥石流、崩塌等场景。</p>
+        <div class="about-grid">
+          <div><strong>知识图谱</strong><span>结构化承载标准、条款、术语、要求、指标和工程措施。</span></div>
+          <div><strong>智能问答</strong><span>结合文档、图谱与实时事件检索结果生成回答，并展示参考来源。</span></div>
+          <div><strong>文档管理</strong><span>管理员可上传资料、解析切分、向量化入库、删除文档和检查索引。</span></div>
+          <div><strong>安全控制</strong><span>管理接口需要 JWT 登录，聊天接口带基础限流，上传文件校验类型和大小。</span></div>
+        </div>
+        <div id="diagnosticsGate" class="admin-gate hidden"></div>
+        <pre id="diagnosticsContent" class="diagnostics-block">登录后可查看系统诊断信息。</pre>
+        <button id="diagnosticsBtn" class="secondary" type="button">查看系统诊断</button>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/assets/map.js?v=dashboard-3"></script>
+  <script src="/static/assets/app.js?v=dashboard-3"></script>
+</body>
+</html>

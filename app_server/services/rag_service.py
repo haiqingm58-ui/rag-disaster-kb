@@ -37,11 +37,16 @@ def extract_keywords(question: str) -> dict[str, list[str]]:
 def _doc_sources(docs: list[Document]) -> list[dict[str, Any]]:
     sources = []
     for doc in docs:
+        filename = doc.metadata.get("filename") or doc.metadata.get("source", "本地文档")
         sources.append({
             "type": "document",
-            "title": doc.metadata.get("filename") or doc.metadata.get("source", "本地文档"),
+            "title": filename,
             "content": doc.page_content[:600],
             "score": doc.metadata.get("score"),
+            "source": filename,
+            "standard": doc.metadata.get("standard") or doc.metadata.get("code"),
+            "clause": doc.metadata.get("clause") or doc.metadata.get("clause_number") or doc.metadata.get("number"),
+            "snippet": doc.page_content[:240],
         })
     return sources
 
@@ -63,6 +68,21 @@ def _realtime_docs(events: list[dict[str, Any]]) -> list[Document]:
         )
         docs.append(Document(page_content=content, metadata={"source_label": "[实时]", "source": ev.get("source", "")}))
     return docs
+
+
+def _fallback_evidence_answer(sources: list[dict[str, Any]]) -> str:
+    if not sources:
+        return "当前知识库中没有找到足够依据。请补充标准条款、上传相关文档，或换用更具体的灾害类型、地点和时间范围重新提问。"
+    lines = ["当前生成模型暂不可用，以下为基于已检索知识库证据的摘要："]
+    for index, source in enumerate(sources[:4], start=1):
+        title = source.get("title") or source.get("source") or "参考来源"
+        standard = source.get("standard") or source.get("source") or ""
+        clause = source.get("clause") or ""
+        snippet = (source.get("snippet") or source.get("content") or "").strip()
+        ref = " · ".join(item for item in (standard, clause) if item)
+        lines.append(f"{index}. {title}{f'（{ref}）' if ref else ''}：{snippet[:220]}")
+    lines.append("参考来源已在右侧来源列表中列出。")
+    return "\n".join(lines)
 
 
 def chat(question: str, session_id: str | None, use_graph: bool, use_realtime: bool, top_k: int) -> dict[str, Any]:
@@ -101,16 +121,21 @@ def chat(question: str, session_id: str | None, use_graph: bool, use_realtime: b
         "title": item.get("label", "知识图谱节点"),
         "content": item.get("content", ""),
         "score": None,
+        "source": "知识图谱",
+        "standard": item.get("code", ""),
+        "clause": item.get("number") or item.get("clause_number"),
+        "snippet": item.get("content", "")[:240],
     } for item in graph_context)
     sources.extend({
         "type": "realtime",
         "title": ev.get("title", "实时灾害事件"),
         "content": f"{ev.get('time', '')} {ev.get('place', '')} {ev.get('risk', '')} {ev.get('source', '')}",
         "score": None,
+        "source": ev.get("source", ""),
+        "standard": None,
+        "clause": None,
+        "snippet": f"{ev.get('time', '')} {ev.get('place', '')} {ev.get('risk', '')}",
     } for ev in realtime_events)
-
-    if not evidence:
-        sources.append({"type": "general", "title": "通用应急知识", "content": "未检索到本地证据，回答将仅作通用安全建议。", "score": None})
 
     augmented_question = (
         f"{question}\n\n"
@@ -119,12 +144,17 @@ def chat(question: str, session_id: str | None, use_graph: bool, use_realtime: b
         "请综合文档、知识图谱和实时事件证据回答；无证据时不要编造。"
     )
     history = SESSIONS[sid][-6:]
-    try:
-        answer_text, usage = answer(augmented_question, evidence, chat_history=history, include_usage=True)
-    except Exception as exc:
-        logger.exception("llm answer failed")
-        answer_text = f"当前无法调用生成模型：{exc}。已返回检索证据，请检查 DeepSeek API Key、网络或本地服务配置。"
+    if not evidence:
+        answer_text = "当前知识库中没有找到足够依据。请补充标准条款、上传相关文档，或换用更具体的灾害类型、地点和时间范围重新提问。"
         usage = {}
+    else:
+        try:
+            answer_text, usage = answer(augmented_question, evidence, chat_history=history, include_usage=True)
+        except Exception as exc:
+            logger.exception("llm answer failed")
+            errors.append(f"生成模型不可用：{exc}")
+            answer_text = _fallback_evidence_answer(sources)
+            usage = {}
 
     SESSIONS[sid].extend([
         {"role": "user", "content": question},
