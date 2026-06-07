@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
+from app_server.services.account_service import verify_user_login
 from app_server.settings import settings
 
 
@@ -21,6 +22,7 @@ class CurrentUser:
     role: str = "admin"
 
 
+AUTH_COOKIE_NAME = "rag_access_token"
 _CHAT_HITS: dict[str, deque[float]] = defaultdict(deque)
 
 
@@ -44,10 +46,18 @@ def _sign(message: str) -> str:
 
 
 def verify_login(username: str, password: str) -> bool:
-    return secrets.compare_digest(username, settings.auth_username) and secrets.compare_digest(
-        password,
-        settings.auth_password,
-    )
+    return authenticate_user(username, password) is not None
+
+
+def authenticate_user(username: str, password: str) -> dict[str, str] | None:
+    user = verify_user_login(username, password)
+    if not user:
+        return None
+    return {
+        "username": str(user.get("username") or username),
+        "role": str(user.get("role") or "user"),
+        "email": str(user.get("email") or ""),
+    }
 
 
 def create_access_token(username: str, role: str = "admin") -> tuple[str, int]:

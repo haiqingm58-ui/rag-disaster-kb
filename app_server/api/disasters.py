@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from app_server.schemas.disaster import DisasterEventsResponse
 from app_server.security import CurrentUser, require_user
 from app_server.services.disaster_service import list_events
+from app_server.services.disaster_scheduler import disaster_scheduler
 
 
 router = APIRouter(prefix="/disasters", tags=["disasters"])
@@ -36,5 +37,24 @@ def events(
 
 @router.post("/sync")
 def sync(user: CurrentUser = Depends(require_user)) -> dict:
-    items, statuses = list_events(days=365, focus_only=True, force_refresh=True)
-    return {"status": "ok", "count": len(items), "statuses": statuses}
+    status = disaster_scheduler.trigger(force_refresh=True, reason="manual_api")
+    result = status.get("last_result") or {}
+    return {
+        "status": "ok" if status.get("last_run_success", True) else "error",
+        "count": result.get("total_events", 0),
+        "new_events": result.get("new_events", 0),
+        "skipped_duplicates": result.get("skipped_duplicates", 0),
+        "statuses": result.get("statuses", {}),
+        "scheduler": status,
+        "vectorstore_error": result.get("vectorstore_error", ""),
+    }
+
+
+@router.get("/scheduler")
+def scheduler_status(user: CurrentUser = Depends(require_user)) -> dict:
+    return disaster_scheduler.status()
+
+
+@router.post("/scheduler/run")
+def scheduler_run(user: CurrentUser = Depends(require_user)) -> dict:
+    return disaster_scheduler.trigger(force_refresh=True, reason="manual_scheduler_api")

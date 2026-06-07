@@ -30,6 +30,8 @@ models/
 # Generated vector stores and API caches
 data/chroma_db/
 data/cache/
+data/accounts/
+data/user_data/
 *.sqlite3
 
 # Generated outputs

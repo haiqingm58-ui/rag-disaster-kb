@@ -1,24 +1,40 @@
 const HOT_KEYWORDS = ["滑坡", "泥石流", "暴雨", "风险评估", "监测预警", "抗滑桩", "地震应急"];
 const SEARCH_GROUPS = ["标准规范", "知识点", "灾害类型", "工程措施", "监测预警", "实时事件", "文档片段"];
 const ADMIN_MESSAGE = "你需要登录管理员账号后才能使用此功能";
+const PUBLIC_PAGES = new Set(["home", "chat", "graph", "standards", "events", "about"]);
 const USAGE_PATHS = [
-  {title: "想了解灾害知识", target: "chat", action: "进入智能问答", text: "围绕滑坡、泥石流、洪水、监测预警等主题进行专业问答。"},
-  {title: "想查标准条款", target: "standards", action: "进入标准库", text: "按标准编号或名称查找规范依据，再进入图谱查看相关条款。"},
-  {title: "想看知识关系", target: "graph", action: "进入知识图谱", text: "按标准、节点类型、关系类型和灾害类型浏览结构化知识。"},
-  {title: "想查近期灾害", target: "events", action: "进入灾害事件", text: "筛选洪水、山地滑坡等实时事件，查看时间、地点和坐标信息。"},
-  {title: "想扩展知识库", target: "documents", action: "进入文档管理", text: "管理员上传 PDF、TXT、MD 文档，将内容解析、切分并入库。"},
+  {title: "想了解灾害知识", target: "chat", text: "围绕滑坡、泥石流、洪水、监测预警等主题进行专业问答。"},
+  {title: "想查标准条款", target: "standards", text: "按标准编号或名称查找规范依据，再进入图谱查看相关条款。"},
+  {title: "想看知识关系", target: "graph", text: "按标准、节点类型、关系类型和灾害类型浏览结构化知识。"},
+  {title: "想查近期灾害", target: "events", text: "筛选洪水、山地滑坡等实时事件，查看时间、地点和坐标信息。"},
 ];
+
+function storageAccount() {
+  const username = localStorage.getItem("rag_username") || "guest";
+  return encodeURIComponent(username).replaceAll("%", "_");
+}
+
+function userStorageKey(name) {
+  return `rag_${storageAccount()}_${name}`;
+}
+
+let accountSaveTimer = null;
+let graphCanvasRuntime = null;
 
 const state = {
   token: localStorage.getItem("rag_access_token") || "",
   username: localStorage.getItem("rag_username") || "",
+  role: localStorage.getItem("rag_user_role") || "",
   sessionId: null,
   summary: null,
   standards: [],
   events: [],
   documents: [],
-  diagnostics: null,
   graphResults: [],
+  graphView: "overview",
+  expandedStandardCode: "",
+  conversations: loadStoredConversations(),
+  activeConversationId: localStorage.getItem(userStorageKey("active_conversation")) || "",
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -40,8 +56,205 @@ function highlight(text, keyword) {
   return safe.replace(new RegExp(pattern, "gi"), (match) => `<mark>${match}</mark>`);
 }
 
+function loadStoredConversations() {
+  try {
+    const raw = localStorage.getItem(userStorageKey("conversations")) || localStorage.getItem("rag_conversations") || "[]";
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, 30) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveConversations() {
+  localStorage.setItem(userStorageKey("conversations"), JSON.stringify(state.conversations.slice(0, 30)));
+  if (state.activeConversationId) {
+    localStorage.setItem(userStorageKey("active_conversation"), state.activeConversationId);
+  }
+  queueAccountDataSave();
+}
+
+function accountDataPayload() {
+  return {
+    conversations: state.conversations.slice(0, 30),
+    active_conversation_id: state.activeConversationId || null,
+  };
+}
+
+function queueAccountDataSave() {
+  if (!hasToken()) return;
+  clearTimeout(accountSaveTimer);
+  accountSaveTimer = setTimeout(() => {
+    syncAccountData().catch(() => undefined);
+  }, 500);
+}
+
+async function syncAccountData() {
+  if (!hasToken()) return;
+  await api("/api/user-data", {method: "PUT", auth: true, body: accountDataPayload()});
+}
+
+async function loadAccountData() {
+  if (!hasToken()) return;
+  try {
+    const data = await api("/api/user-data", {auth: true});
+    if (Array.isArray(data.conversations) && data.conversations.length) {
+      state.conversations = data.conversations.slice(0, 30);
+      state.activeConversationId = data.active_conversation_id || state.conversations[0]?.id || "";
+      localStorage.setItem(userStorageKey("conversations"), JSON.stringify(state.conversations));
+      if (state.activeConversationId) {
+        localStorage.setItem(userStorageKey("active_conversation"), state.activeConversationId);
+      }
+    } else if (state.conversations.length) {
+      await syncAccountData();
+    }
+  } catch {
+    // Keep the browser-local account data available if server sync is temporarily unavailable.
+  }
+}
+
+function createConversation(title = "新会话") {
+  const conversation = {
+    id: `conv-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title,
+    messages: [],
+    sources: [],
+    relatedQuestions: [],
+    retrieval: null,
+    sessionId: null,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  state.conversations.unshift(conversation);
+  state.activeConversationId = conversation.id;
+  saveConversations();
+  renderConversationList();
+  return conversation;
+}
+
+function getActiveConversation() {
+  let conversation = state.conversations.find((item) => item.id === state.activeConversationId);
+  if (!conversation) {
+    conversation = createConversation();
+  }
+  return conversation;
+}
+
+function recordMessage(role, content) {
+  const conversation = getActiveConversation();
+  conversation.messages.push({role, content, time: Date.now()});
+  conversation.updatedAt = Date.now();
+  if (role === "user" && (!conversation.title || conversation.title === "新会话")) {
+    conversation.title = content.length > 24 ? `${content.slice(0, 24)}...` : content;
+  }
+  state.conversations = [conversation, ...state.conversations.filter((item) => item.id !== conversation.id)].slice(0, 30);
+  state.activeConversationId = conversation.id;
+  saveConversations();
+  renderConversationList();
+}
+
+function updateConversationArtifacts(data, question) {
+  const conversation = getActiveConversation();
+  conversation.sources = data.sources || [];
+  conversation.relatedQuestions = buildRelatedQuestions(question, data.sources || []);
+  conversation.retrieval = buildRetrievalSummaryModel(data);
+  conversation.sessionId = state.sessionId || conversation.sessionId || null;
+  conversation.updatedAt = Date.now();
+  saveConversations();
+  renderConversationList();
+}
+
+function clearChatPanels() {
+  $("#messages").innerHTML = "";
+  $("#sources").innerHTML = "";
+  $("#relatedQuestions").innerHTML = "";
+  $("#retrievalSummary").innerHTML = '<div class="empty-state">发送问题后显示本次检索过程。</div>';
+}
+
+function restoreConversation(conversationId) {
+  const conversation = state.conversations.find((item) => item.id === conversationId);
+  if (!conversation) return;
+  state.activeConversationId = conversation.id;
+  state.sessionId = conversation.sessionId || null;
+  localStorage.setItem(userStorageKey("active_conversation"), conversation.id);
+  saveConversations();
+  clearChatPanels();
+  (conversation.messages || []).forEach((message) => appendMessage(message.role, message.content, {skipRecord: true}));
+  renderSources(conversation.sources || []);
+  renderRelatedQuestionsFromList(conversation.relatedQuestions || []);
+  renderRetrievalSummaryModel(conversation.retrieval);
+  renderConversationList();
+}
+
+function startNewConversation() {
+  createConversation();
+  state.sessionId = null;
+  clearChatPanels();
+  appendMessage("assistant", "已创建新会话。旧对话已保存在右侧历史会话中。", {skipRecord: true});
+}
+
+function initChatState() {
+  const savedActive = state.conversations.find((item) => item.id === state.activeConversationId);
+  if (savedActive) {
+    restoreConversation(savedActive.id);
+    return;
+  }
+  if (state.conversations.length) {
+    restoreConversation(state.conversations[0].id);
+    return;
+  }
+  createConversation();
+  clearChatPanels();
+  appendMessage("assistant", "您好，我可以基于地质灾害标准、知识图谱、已上传文档和实时灾害事件回答问题。回答会尽量给出参考来源。", {skipRecord: true});
+}
+
+function renderConversationList() {
+  const container = $("#conversationList");
+  if (!container) return;
+  if (!state.conversations.length) {
+    container.innerHTML = '<div class="empty-state">暂无历史会话。</div>';
+    return;
+  }
+  container.innerHTML = state.conversations.slice(0, 12).map((conversation) => `
+    <button class="conversation-item ${conversation.id === state.activeConversationId ? "active" : ""}" type="button" data-conversation-id="${escapeHtml(conversation.id)}">
+      <strong>${escapeHtml(conversation.title || "新会话")}</strong>
+      <span>${escapeHtml(formatConversationTime(conversation.updatedAt))} · ${(conversation.messages || []).length} 条消息</span>
+    </button>
+  `).join("");
+  container.querySelectorAll("[data-conversation-id]").forEach((button) => {
+    button.addEventListener("click", () => restoreConversation(button.dataset.conversationId));
+  });
+}
+
+function formatConversationTime(timestamp) {
+  if (!timestamp) return "刚刚";
+  return new Date(timestamp).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 function hasToken() {
   return Boolean(state.token);
+}
+
+function tokenExpired() {
+  const expiresAt = Number(localStorage.getItem("rag_token_expires_at") || 0);
+  return Boolean(expiresAt) && expiresAt <= Math.floor(Date.now() / 1000);
+}
+
+function ensureAuthenticatedPage() {
+  state.token = localStorage.getItem("rag_access_token") || "";
+  state.username = localStorage.getItem("rag_username") || "";
+  if (!state.token || tokenExpired()) {
+    clearAuthStorage();
+    window.location.replace("/");
+    return false;
+  }
+  return true;
 }
 
 function authHeaders(required = false) {
@@ -117,11 +330,13 @@ function toast(message) {
 function updateAuthState() {
   state.token = localStorage.getItem("rag_access_token") || "";
   state.username = localStorage.getItem("rag_username") || "";
+  state.role = localStorage.getItem("rag_user_role") || "";
   const userState = $("#userState");
   const loginLink = $("#loginLink");
   const logoutBtn = $("#logoutBtn");
   if (hasToken()) {
-    userState.textContent = `管理员：${state.username || "admin"}`;
+    const label = state.role === "admin" ? "管理员" : "用户";
+    userState.textContent = `${label}：${state.username || "admin"}`;
     loginLink.classList.add("hidden");
     logoutBtn.classList.remove("hidden");
   } else {
@@ -129,10 +344,6 @@ function updateAuthState() {
     loginLink.classList.remove("hidden");
     logoutBtn.classList.add("hidden");
   }
-  const authNotice = $("#authNotice");
-  if (authNotice) authNotice.classList.toggle("hidden", hasToken());
-  renderAdminGate("documentsGate");
-  renderAdminGate("diagnosticsGate");
   renderAdminGate("eventsGate", true);
 }
 
@@ -141,16 +352,33 @@ function clearAuthStorage() {
   localStorage.removeItem("rag_token_expires_at");
   localStorage.removeItem("rag_username");
   localStorage.removeItem("rag_user_role");
+  localStorage.removeItem("rag_active_conversation");
   state.token = "";
   state.username = "";
 }
 
-function logout() {
+async function logout() {
+  saveConversations();
+  try {
+    await syncAccountData();
+  } catch {
+    // Logout should still proceed if account data sync is temporarily unavailable.
+  }
+  const token = state.token;
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: token ? {Authorization: `Bearer ${token}`} : {},
+    });
+  } catch {
+    // Local cleanup still matters if the network request fails.
+  }
+  clearTimeout(accountSaveTimer);
+  document.cookie = "rag_access_token=; Max-Age=0; path=/; SameSite=Lax";
   clearAuthStorage();
   updateAuthState();
-  renderDocuments();
   renderOverview();
-  window.location.href = "/";
+  window.location.replace("/");
 }
 
 function renderAdminGate(targetId, hideUntilNeeded = false) {
@@ -164,23 +392,23 @@ function renderAdminGate(targetId, hideUntilNeeded = false) {
   container.classList.remove("hidden");
   container.innerHTML = `
     <strong>${ADMIN_MESSAGE}</strong>
-    <p>登录后可以上传文档、删除文档、同步灾害数据和查看系统诊断。</p>
+    <p>登录后可以同步灾害数据和查看管理信息。</p>
     <a class="secondary admin-login-link" href="/">去登录</a>
   `;
 }
 
 function showPage(name) {
-  $$(".page").forEach((page) => page.classList.toggle("active", page.id === `page-${name}`));
-  $$("#topNav button").forEach((button) => button.classList.toggle("active", button.dataset.page === name));
-  if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
+  const targetName = PUBLIC_PAGES.has(name) ? name : "home";
+  if (name === "documents") toast("该功能已关闭。");
+  $$(".page").forEach((page) => page.classList.toggle("active", page.id === `page-${targetName}`));
+  $$("#topNav button").forEach((button) => button.classList.toggle("active", button.dataset.page === targetName));
+  if (location.hash !== `#${targetName}`) history.replaceState(null, "", `#${targetName}`);
   $("#topNav").classList.remove("open");
 
-  if (name === "graph") loadGraphPage();
-  if (name === "standards") loadStandards();
-  if (name === "events") loadEvents();
-  if (name === "documents") loadDocuments();
-  if (name === "about") loadDiagnostics(false);
-  if (name === "documents" || name === "about") updateAuthState();
+  if (targetName === "graph") loadGraphPage();
+  if (targetName === "standards") loadStandards();
+  if (targetName === "events") loadEvents();
+  if (targetName === "about") updateAuthState();
 }
 
 function setupNavigation() {
@@ -201,9 +429,6 @@ async function loadDashboard() {
     toast(error.message);
   }
   await loadEvents({silent: true, homeOnly: true});
-  if (hasToken()) {
-    await loadDocuments({silent: true});
-  }
   renderOverview();
   renderHomeEvents();
 }
@@ -212,13 +437,11 @@ function renderOverview() {
   const container = $("#overviewCards");
   if (!container) return;
   const summary = state.summary || {};
-  const documentCount = hasToken() ? state.documents.length : "需登录";
   const cards = [
     ["标准数量", summary.standards ?? "-"],
     ["知识节点数量", summary.nodes ?? sumNodeCounts(summary)],
     ["关系数量", summary.relationships ?? "-"],
     ["灾害事件数量", state.events.length || "-"],
-    ["文档数量", documentCount],
   ];
   container.innerHTML = cards.map(([label, value]) => `
     <article class="metric-card">
@@ -234,9 +457,8 @@ function renderUsagePaths() {
   container.innerHTML = USAGE_PATHS.map((item) => `
     <article class="usage-card">
       <span>${escapeHtml(item.title)}</span>
-      <h3>${escapeHtml(item.action)}</h3>
       <p>${escapeHtml(item.text)}</p>
-      <button class="ghost" type="button" data-jump="${escapeHtml(item.target)}">打开</button>
+      <button class="ghost" type="button" data-jump="${escapeHtml(item.target)}">进入</button>
     </article>
   `).join("");
   container.querySelectorAll("[data-jump]").forEach((button) => {
@@ -275,6 +497,8 @@ async function performSearch(query) {
   const keyword = (query || "").trim();
   const output = $("#searchResults");
   if (!keyword || !output) return;
+  if ($("#homeSearchInput")) $("#homeSearchInput").value = keyword;
+  if ($("#globalSearchInput")) $("#globalSearchInput").value = keyword;
   output.innerHTML = '<div class="loading">正在检索知识图谱、实时事件和文档索引...</div>';
   const grouped = Object.fromEntries(SEARCH_GROUPS.map((name) => [name, []]));
 
@@ -325,6 +549,16 @@ async function performSearch(query) {
   }
 
   renderGroupedResults(grouped, keyword);
+}
+
+function runGlobalSearch(query) {
+  const keyword = (query || "").trim();
+  if (!keyword) return;
+  showPage("home");
+  performSearch(keyword);
+  setTimeout(() => {
+    $("#searchResults")?.scrollIntoView({behavior: "smooth", block: "start"});
+  }, 0);
 }
 
 function eventMatchesKeyword(event, keyword) {
@@ -415,7 +649,7 @@ function renderStandards() {
 async function loadGraphPage() {
   await loadStandards();
   if (!state.graphResults.length) {
-    await searchGraphNodes();
+    renderGraphOverview();
   }
 }
 
@@ -429,15 +663,20 @@ function selectedRelationTypeToNodeType(relationType) {
 }
 
 async function searchGraphNodes() {
-  const query = ($("#graphSearchInput")?.value || $("#graphDisasterFilter")?.value || "滑坡").trim();
+  const rawQuery = ($("#graphSearchInput")?.value || "").trim();
   const standard = $("#graphStandardFilter")?.value || "";
   const type = $("#graphTypeFilter")?.value || selectedRelationTypeToNodeType($("#graphRelationFilter")?.value || "");
   const disaster = $("#graphDisasterFilter")?.value || "";
+  const query = rawQuery || disaster || standard;
   const container = $("#graphNodes");
   if (!container) return;
+  if (!query && !type) {
+    renderGraphOverview();
+    return;
+  }
   container.innerHTML = '<div class="loading">正在加载图谱节点...</div>';
   try {
-    const items = await api(`/api/graph/search?q=${encodeURIComponent(query || disaster || "灾害")}&limit=80`);
+    const items = await api(`/api/graph/search?q=${encodeURIComponent(query || "灾害")}&limit=80`);
     state.graphResults = items.filter((item) => {
       const text = `${item.title || ""} ${item.text || ""}`;
       if (standard && item.code !== standard) return false;
@@ -445,36 +684,657 @@ async function searchGraphNodes() {
       if (disaster && !text.includes(disaster)) return false;
       return true;
     });
+    state.graphView = "search";
+    state.expandedStandardCode = standard || "";
+    renderGraphCanvas();
     renderGraphNodes();
   } catch (error) {
     container.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    $("#graphCanvas").innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
   }
+}
+
+function renderGraphOverview() {
+  state.graphView = "overview";
+  state.expandedStandardCode = "";
+  state.graphResults = (state.standards || []).map((standard) => ({
+    type: "标准",
+    code: standard.code || "",
+    title: standard.title || standard.name || standard.code || "未命名标准",
+    text: `${standard.code || ""} ${standard.title || ""}`,
+    node_id: standard.standard_id || "",
+    chapters: standard.chapters || 0,
+    clauses: standard.clauses || 0,
+    terms: standard.terms || 0,
+    requirements: standard.requirements || 0,
+    indicators: standard.indicators || 0,
+    methods: standard.methods || 0,
+    overview: true,
+  }));
+  renderGraphCanvas();
+  renderGraphNodes();
+}
+
+async function expandStandardGraph(code, nodeId = "") {
+  if (!code) return;
+  const canvas = $("#graphCanvas");
+  const list = $("#graphNodes");
+  if (canvas) canvas.innerHTML = '<div class="loading">正在展开标准子节点...</div>';
+  if (list) list.innerHTML = '<div class="loading">正在加载章节、条款和知识点...</div>';
+  try {
+    const detail = await api(`/api/graph/standards/${encodeURIComponent(code)}`);
+    renderStandardSubgraph(detail);
+    if (nodeId) loadNodeDetail(nodeId);
+  } catch (error) {
+    if (canvas) canvas.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    if (list) list.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderStandardSubgraph(detail) {
+  const standard = detail.standard || {};
+  const rootId = standard.standard_id || `std-code-${standard.code || "standard"}`;
+  state.graphView = "standard";
+  state.expandedStandardCode = standard.code || "";
+  state.graphResults = [
+    {
+      type: "标准",
+      code: standard.code || "",
+      title: standard.title || standard.name || standard.code || "未命名标准",
+      text: `${standard.code || ""} ${standard.title || ""}`,
+      node_id: rootId,
+      expandedRoot: true,
+      chapters: standard.chapters || (detail.chapters || []).length,
+      clauses: standard.clauses || (detail.clauses || []).length,
+      terms: standard.terms || (detail.terms || []).length,
+      requirements: standard.requirements || (detail.requirements || []).length,
+      indicators: standard.indicators || (detail.indicators || []).length,
+      methods: standard.methods || (detail.methods || []).length,
+    },
+    ...standardChildItems(detail, rootId),
+  ];
+  renderGraphCanvas();
+  renderGraphNodes();
+}
+
+function standardChildItems(detail, parentId) {
+  const mapNode = (item, type) => ({
+    type,
+    code: item.code || detail.standard?.code || "",
+    title: item.title || item.name || item.text || item.number || "未命名节点",
+    text: item.content || item.definition || item.description || item.text || item.name || item.title || "",
+    node_id: item.id || item.standard_id || "",
+    number: item.number || item.clause_number || "",
+    parentId,
+    child: true,
+  });
+  return [
+    ...(detail.chapters || []).map((item) => mapNode(item, "章节")),
+    ...(detail.clauses || []).map((item) => mapNode(item, "条款")),
+    ...(detail.terms || []).map((item) => mapNode(item, "术语")),
+    ...(detail.requirements || []).map((item) => mapNode(item, "要求")),
+    ...(detail.indicators || []).map((item) => mapNode(item, "指标")),
+    ...(detail.methods || []).map((item) => mapNode(item, "方法")),
+    ...(detail.objects || []).map((item) => mapNode(item, "对象")),
+  ].filter((item) => item.node_id);
+}
+
+function buildGraphCanvasData(items) {
+  const expanded = (items || []).some((item) => item.expandedRoot);
+  const limit = expanded ? 42 : 28;
+  const limited = (items || []).slice(0, limit);
+  const nodeMap = new Map();
+  const edges = [];
+
+  function putNode(node) {
+    if (!node.id || nodeMap.has(node.id)) return;
+    nodeMap.set(node.id, node);
+  }
+
+  const overview = limited.length > 0 && limited.every((item) => item.type === "标准" && item.overview);
+  if (overview) {
+    putNode({id: "standards-root", label: "标准库", type: "总览", virtual: true});
+  }
+
+  const expandedRoot = limited.find((item) => item.expandedRoot);
+  if (expandedRoot) {
+    putNode({
+      id: expandedRoot.node_id,
+      label: expandedRoot.title || expandedRoot.code || "标准",
+      type: "标准",
+      code: expandedRoot.code || "",
+      sourceItem: expandedRoot,
+      expandedRoot: true,
+    });
+  }
+
+  limited.forEach((item, index) => {
+    if (item.expandedRoot) return;
+    const nodeId = item.node_id || (item.type === "标准" && item.code ? `std-code-${item.code}` : `search-${index}`);
+    const type = item.type || "节点";
+    const label = item.title || item.text?.slice(0, 28) || "未命名节点";
+    putNode({
+      id: nodeId,
+      label,
+      type,
+      code: item.code || "",
+      sourceItem: item,
+    });
+    if (overview) {
+      edges.push({
+        source: "standards-root",
+        target: nodeId,
+        label: "包含标准",
+      });
+    } else if (expandedRoot) {
+      edges.push({
+        source: expandedRoot.node_id,
+        target: nodeId,
+        label: relationLabelForType(type),
+      });
+    } else if (item.code && type !== "标准") {
+      const standardId = `std-code-${item.code}`;
+      putNode({
+        id: standardId,
+        label: item.code,
+        type: "标准",
+        code: item.code,
+        virtual: true,
+      });
+      edges.push({
+        source: standardId,
+        target: nodeId,
+        label: relationLabelForType(type),
+      });
+    }
+  });
+
+  return {nodes: Array.from(nodeMap.values()), edges, totalItems: (items || []).length};
+}
+
+function relationLabelForType(type) {
+  return {
+    标准: "同类标准",
+    章节: "包含章节",
+    条款: "包含条款",
+    术语: "定义术语",
+    要求: "规范要求",
+    指标: "指标参数",
+    方法: "工程措施",
+    对象: "适用对象",
+  }[type] || "相关";
+}
+
+function renderGraphCanvas() {
+  const container = $("#graphCanvas");
+  if (!container) return;
+  if (graphCanvasRuntime?.stop) graphCanvasRuntime.stop();
+  const {nodes, edges, totalItems} = buildGraphCanvasData(state.graphResults);
+  if (!nodes.length) {
+    container.innerHTML = '<div class="empty-state">没有可展示的节点关系，请调整筛选条件。</div>';
+    return;
+  }
+
+  const width = 920;
+  const height = 430;
+  seedGraphPositions(nodes, edges, width, height);
+
+  const edgeMarkup = edges.map((edge, index) => {
+    const pathId = `graphEdgePath${index}`;
+    return `
+      <g class="graph-edge" data-edge-index="${index}">
+        <path id="${pathId}" class="graph-edge-path"></path>
+        <path class="graph-edge-flow"></path>
+        <text><textPath href="#${pathId}" xlink:href="#${pathId}" startOffset="50%">${escapeHtml(edge.label)}</textPath></text>
+      </g>
+    `;
+  }).join("");
+
+  const nodeMarkup = nodes.map((node) => {
+    node.radius = node.type === "标准" ? 29 : node.type === "条款" ? 23 : 20;
+    const label = truncateGraphLabel(node.label, node.type === "标准" ? 16 : 12);
+    return `
+      <g class="graph-node graph-node-${nodeClass(node.type)}" data-node-id="${escapeHtml(node.virtual ? "" : node.id)}" data-code="${escapeHtml(node.code || "")}" data-node-type="${escapeHtml(node.type || "")}" data-graph-id="${escapeHtml(node.id)}">
+        <circle class="graph-node-halo" r="${node.radius + 9}"></circle>
+        <circle class="graph-node-core" r="${node.radius}"></circle>
+        <text class="graph-node-label" y="${node.radius + 18}">${escapeHtml(label)}</text>
+        <title>${escapeHtml(node.label)}</title>
+      </g>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="graph-canvas-head">
+      <div>
+        <strong>节点关系图</strong>
+        <span>${nodes.length} 个画布节点 · ${edges.length} 条关系${totalItems > nodes.length ? ` · 共 ${totalItems} 个可浏览节点` : ""}</span>
+      </div>
+      <div class="graph-toolbar" aria-label="图谱交互工具">
+        <button type="button" data-graph-action="zoom-out">缩小</button>
+        <button type="button" data-graph-action="fit">适配视图</button>
+        <button type="button" data-graph-action="zoom-in">放大</button>
+        <button type="button" data-graph-action="restart">重新布局</button>
+      </div>
+    </div>
+    <div class="graph-hint">${state.graphView === "standard" ? "拖拽节点调整布局，滚轮缩放，点击子节点查看详情" : "拖拽和滚轮浏览图谱，点击标准节点展开子节点"}</div>
+    <svg viewBox="0 0 ${width} ${height}" xmlns:xlink="http://www.w3.org/1999/xlink" role="img" aria-label="知识图谱节点关系图">
+      <defs>
+        <marker id="graphArrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z"></path>
+        </marker>
+        <radialGradient id="graphGlow" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.82"></stop>
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0"></stop>
+        </radialGradient>
+      </defs>
+      <rect class="graph-background" width="${width}" height="${height}" rx="12"></rect>
+      <g class="graph-viewport">
+        <g class="graph-edges">${edgeMarkup}</g>
+        <g class="graph-nodes">${nodeMarkup}</g>
+      </g>
+    </svg>
+  `;
+  graphCanvasRuntime = startGraphSimulation(container, nodes, edges, width, height);
+  container.querySelectorAll(".graph-node").forEach((node) => {
+    node.addEventListener("click", (event) => {
+      if (node._dragMoved) {
+        node._dragMoved = false;
+        return;
+      }
+      const nodeId = node.dataset.nodeId;
+      const code = node.dataset.code;
+      const nodeType = node.dataset.nodeType;
+      if (nodeType === "标准" && code) {
+        expandStandardGraph(code, nodeId);
+        return;
+      }
+      if (nodeId) {
+        loadNodeDetail(nodeId);
+        return;
+      }
+      if (code) {
+        $("#graphStandardFilter").value = code;
+        searchGraphNodes();
+      }
+    });
+    node.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      graphCanvasRuntime?.focusNode(node.dataset.graphId);
+    });
+  });
+  container.querySelector('[data-graph-action="restart"]')?.addEventListener("click", () => graphCanvasRuntime?.restart());
+  container.querySelector('[data-graph-action="fit"]')?.addEventListener("click", () => graphCanvasRuntime?.fit());
+  container.querySelector('[data-graph-action="zoom-out"]')?.addEventListener("click", () => graphCanvasRuntime?.zoomBy(0.86));
+  container.querySelector('[data-graph-action="zoom-in"]')?.addEventListener("click", () => graphCanvasRuntime?.zoomBy(1.16));
+}
+
+function seedGraphPositions(nodes, edges, width, height) {
+  const centerX = width / 2;
+  const centerY = height / 2 + 6;
+  const expandedRoot = nodes.find((node) => node.expandedRoot || node.type === "总览");
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const degree = Object.fromEntries(nodes.map((node) => [node.id, 0]));
+  edges.forEach((edge) => {
+    degree[edge.source] = (degree[edge.source] || 0) + 1;
+    degree[edge.target] = (degree[edge.target] || 0) + 1;
+  });
+
+  nodes.forEach((node, index) => {
+    node.degree = degree[node.id] || 0;
+    node.vx = 0;
+    node.vy = 0;
+    if (node === expandedRoot) {
+      node.x = centerX;
+      node.y = centerY;
+      node.fx = centerX;
+      node.fy = centerY;
+      return;
+    }
+    const parent = node.parentId ? nodeById.get(node.parentId) : null;
+    const angle = (Math.PI * 2 * index) / Math.max(nodes.length - 1, 1) - Math.PI / 2;
+    const radius = parent ? 155 + (index % 4) * 24 : Math.min(310, 130 + nodes.length * 6);
+    node.x = centerX + Math.cos(angle) * radius;
+    node.y = centerY + Math.sin(angle) * Math.min(radius * 0.68, 150);
+  });
+}
+
+function startGraphSimulation(container, nodes, edges, width, height) {
+  const svg = container.querySelector("svg");
+  const viewport = container.querySelector(".graph-viewport");
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const nodeElements = new Map(Array.from(container.querySelectorAll(".graph-node")).map((element) => [element.dataset.graphId, element]));
+  const edgeElements = Array.from(container.querySelectorAll(".graph-edge"));
+  let view = {x: 0, y: 0, k: 1};
+  let alpha = 1;
+  let frame = null;
+  let stopped = false;
+  let draggingNode = null;
+  let panning = null;
+
+  function svgPoint(event) {
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const mapped = point.matrixTransform(svg.getScreenCTM().inverse());
+    return {
+      x: (mapped.x - view.x) / view.k,
+      y: (mapped.y - view.y) / view.k,
+      rawX: mapped.x,
+      rawY: mapped.y,
+    };
+  }
+
+  function applyView() {
+    viewport.setAttribute("transform", `translate(${view.x} ${view.y}) scale(${view.k})`);
+  }
+
+  function setZoom(nextK, rawX = width / 2, rawY = height / 2) {
+    const point = {
+      x: (rawX - view.x) / view.k,
+      y: (rawY - view.y) / view.k,
+    };
+    view.x = rawX - point.x * nextK;
+    view.y = rawY - point.y * nextK;
+    view.k = nextK;
+    applyView();
+  }
+
+  function zoomBy(factor) {
+    const nextK = Math.max(0.55, Math.min(2.1, view.k * factor));
+    setZoom(nextK);
+  }
+
+  function updateFrame() {
+    edges.forEach((edge, index) => {
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      const group = edgeElements[index];
+      if (!source || !target || !group) return;
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const sx = source.x + (dx / distance) * (source.radius || 22);
+      const sy = source.y + (dy / distance) * (source.radius || 22);
+      const tx = target.x - (dx / distance) * ((target.radius || 22) + 6);
+      const ty = target.y - (dy / distance) * ((target.radius || 22) + 6);
+      const curve = Math.min(42, Math.max(-42, (index % 5 - 2) * 12));
+      const cx = (sx + tx) / 2 - (dy / distance) * curve;
+      const cy = (sy + ty) / 2 + (dx / distance) * curve;
+      const path = `M${sx.toFixed(1)},${sy.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${tx.toFixed(1)},${ty.toFixed(1)}`;
+      group.querySelectorAll("path").forEach((item) => item.setAttribute("d", path));
+    });
+    nodes.forEach((node) => {
+      const element = nodeElements.get(node.id);
+      if (element) element.setAttribute("transform", `translate(${node.x.toFixed(1)}, ${node.y.toFixed(1)})`);
+    });
+  }
+
+  function edgeTargetDistance(edge) {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (source?.expandedRoot || target?.expandedRoot || source?.type === "总览" || target?.type === "总览") return 150;
+    if (source?.type === "标准" || target?.type === "标准") return 125;
+    return 108;
+  }
+
+  function tick() {
+    if (stopped) return;
+    alpha = Math.max(alpha * 0.965, 0.012);
+    const centerX = width / 2;
+    const centerY = height / 2 + 8;
+
+    edges.forEach((edge) => {
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      if (!source || !target) return;
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const desired = edgeTargetDistance(edge);
+      const force = (distance - desired) * 0.022 * alpha;
+      const fx = (dx / distance) * force;
+      const fy = (dy / distance) * force;
+      if (source.fx == null) {
+        source.vx += fx;
+        source.vy += fy;
+      }
+      if (target.fx == null) {
+        target.vx -= fx;
+        target.vy -= fy;
+      }
+    });
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      for (let j = i + 1; j < nodes.length; j += 1) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const dx = b.x - a.x || 0.01;
+        const dy = b.y - a.y || 0.01;
+        const distanceSq = dx * dx + dy * dy;
+        const minDistance = (a.radius || 22) + (b.radius || 22) + 42;
+        const repulse = Math.min(2.6, (minDistance * minDistance) / Math.max(distanceSq, 80)) * alpha;
+        const distance = Math.sqrt(distanceSq);
+        const fx = (dx / distance) * repulse;
+        const fy = (dy / distance) * repulse;
+        if (a.fx == null) {
+          a.vx -= fx;
+          a.vy -= fy;
+        }
+        if (b.fx == null) {
+          b.vx += fx;
+          b.vy += fy;
+        }
+      }
+    }
+
+    nodes.forEach((node) => {
+      const targetY = node.type === "标准" && state.graphView !== "standard" ? height * 0.28 : centerY;
+      if (node.fx == null) {
+        node.vx += (centerX - node.x) * 0.006 * alpha;
+        node.vy += (targetY - node.y) * 0.006 * alpha;
+        node.vx *= 0.82;
+        node.vy *= 0.82;
+        node.x = Math.max(54, Math.min(width - 54, node.x + node.vx));
+        node.y = Math.max(58, Math.min(height - 58, node.y + node.vy));
+      } else {
+        node.x = node.fx;
+        node.y = node.fy;
+      }
+    });
+
+    updateFrame();
+    if (alpha > 0.014 || draggingNode) {
+      frame = requestAnimationFrame(tick);
+    } else {
+      frame = null;
+    }
+  }
+
+  function restart() {
+    nodes.forEach((node) => {
+      if (!node.expandedRoot && node.type !== "总览") {
+        node.fx = null;
+        node.fy = null;
+      }
+      node.vx = 0;
+      node.vy = 0;
+    });
+    alpha = 1;
+    if (!frame) frame = requestAnimationFrame(tick);
+  }
+
+  function fit() {
+    const xs = nodes.map((node) => node.x);
+    const ys = nodes.map((node) => node.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const boxWidth = Math.max(maxX - minX, 1);
+    const boxHeight = Math.max(maxY - minY, 1);
+    const nextK = Math.min(1.35, Math.max(0.68, Math.min((width - 120) / boxWidth, (height - 110) / boxHeight)));
+    view = {
+      k: nextK,
+      x: width / 2 - ((minX + maxX) / 2) * nextK,
+      y: height / 2 - ((minY + maxY) / 2) * nextK,
+    };
+    applyView();
+  }
+
+  function focusNode(nodeId) {
+    const node = nodeById.get(nodeId);
+    if (!node) return;
+    view = {k: 1.45, x: width / 2 - node.x * 1.45, y: height / 2 - node.y * 1.45};
+    applyView();
+    nodeElements.forEach((element) => element.classList.toggle("dimmed", element.dataset.graphId !== nodeId));
+    setTimeout(() => nodeElements.forEach((element) => element.classList.remove("dimmed")), 1200);
+  }
+
+  svg.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const point = svgPoint(event);
+    const nextK = Math.max(0.55, Math.min(2.1, view.k * (event.deltaY > 0 ? 0.9 : 1.1)));
+    setZoom(nextK, point.rawX, point.rawY);
+  }, {passive: false});
+
+  svg.addEventListener("pointerdown", (event) => {
+    if (!event.target.classList.contains("graph-background")) return;
+    const point = svgPoint(event);
+    panning = {x: point.rawX, y: point.rawY, viewX: view.x, viewY: view.y};
+    svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove", (event) => {
+    if (!panning) return;
+    const point = svgPoint(event);
+    view.x = panning.viewX + point.rawX - panning.x;
+    view.y = panning.viewY + point.rawY - panning.y;
+    applyView();
+  });
+  svg.addEventListener("pointerup", () => {
+    panning = null;
+  });
+  svg.addEventListener("pointercancel", () => {
+    panning = null;
+  });
+
+  nodeElements.forEach((element, nodeId) => {
+    const node = nodeById.get(nodeId);
+    if (!node) return;
+    element.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      draggingNode = node;
+      element._dragMoved = false;
+      const point = svgPoint(event);
+      node.fx = point.x;
+      node.fy = point.y;
+      element.classList.add("dragging");
+      element.setPointerCapture(event.pointerId);
+      alpha = Math.max(alpha, 0.42);
+      if (!frame) frame = requestAnimationFrame(tick);
+    });
+    element.addEventListener("pointermove", (event) => {
+      if (draggingNode !== node) return;
+      const point = svgPoint(event);
+      if (Math.hypot(node.fx - point.x, node.fy - point.y) > 2) element._dragMoved = true;
+      node.fx = point.x;
+      node.fy = point.y;
+      alpha = Math.max(alpha, 0.28);
+    });
+    element.addEventListener("pointerup", (event) => {
+      if (draggingNode !== node) return;
+      draggingNode = null;
+      element.classList.remove("dragging");
+      if (!node.expandedRoot && node.type !== "总览") {
+        node.fx = null;
+        node.fy = null;
+      }
+      element.releasePointerCapture?.(event.pointerId);
+    });
+  });
+
+  applyView();
+  updateFrame();
+  frame = requestAnimationFrame(tick);
+  setTimeout(fit, 220);
+  return {
+    restart,
+    fit,
+    focusNode,
+    zoomBy,
+    stop() {
+      stopped = true;
+      if (frame) cancelAnimationFrame(frame);
+      frame = null;
+    },
+  };
+}
+
+function truncateGraphLabel(label, maxLength) {
+  const value = String(label || "");
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
 function renderGraphNodes() {
   const container = $("#graphNodes");
-  container.innerHTML = state.graphResults.map((item) => `
-    <button class="node-card ${nodeClass(item.type)}" type="button" data-node-id="${escapeHtml(item.node_id || "")}">
+  const visible = state.graphResults.slice(0, state.graphView === "standard" ? 180 : state.graphResults.length);
+  const hiddenCount = Math.max(state.graphResults.length - visible.length, 0);
+  const header = state.graphView === "standard" ? `
+    <div class="graph-subgraph-note">
+      <strong>${escapeHtml(state.expandedStandardCode || "标准子图")}</strong>
+      <span>已展开 ${state.graphResults.length - 1} 个子节点，列表展示前 ${visible.length - 1} 个。</span>
+      <button class="ghost" type="button" id="backToGraphOverview">返回标准总览</button>
+    </div>
+  ` : "";
+  container.innerHTML = header + (visible.map((item) => `
+    <button class="node-card ${nodeClass(item.type)}" type="button" data-node-id="${escapeHtml(item.node_id || "")}" data-node-type="${escapeHtml(item.type || "")}" data-code="${escapeHtml(item.code || "")}">
       <span>${escapeHtml(item.type || "节点")}</span>
       <strong>${escapeHtml(item.title || item.text?.slice(0, 36) || "未命名节点")}</strong>
-      <small>${escapeHtml(item.code || "知识图谱")}</small>
+      <small>${escapeHtml(graphNodeMeta(item))}</small>
     </button>
-  `).join("") || '<div class="empty-state">没有匹配的图谱节点。</div>';
+  `).join("") || '<div class="empty-state">没有匹配的图谱节点。</div>') + (hiddenCount > 0 ? `<div class="empty-state">还有 ${hiddenCount} 个子节点未在列表中展开，请用上方搜索或筛选继续定位。</div>` : "");
+  $("#backToGraphOverview")?.addEventListener("click", () => {
+    $("#graphStandardFilter").value = "";
+    $("#graphSearchInput").value = "";
+    renderGraphOverview();
+  });
   container.querySelectorAll(".node-card").forEach((button, index) => {
     button.addEventListener("click", () => {
-      if (button.dataset.nodeId) loadNodeDetail(button.dataset.nodeId);
-      else renderNodeDetail({node: state.graphResults[index], relations: []});
+      if (button.dataset.nodeType === "标准" && button.dataset.code) {
+        expandStandardGraph(button.dataset.code, button.dataset.nodeId);
+      } else if (button.dataset.nodeId) {
+        loadNodeDetail(button.dataset.nodeId);
+      } else {
+        renderNodeDetail({node: visible[index], relations: []});
+      }
     });
   });
 }
 
+function graphNodeMeta(item) {
+  if (item.overview) {
+    return `${item.code || "标准"} · ${item.clauses || 0} 条款 · ${item.requirements || 0} 要求`;
+  }
+  if (item.expandedRoot) {
+    return `${item.code || "标准"} · ${item.clauses || 0} 条款 · ${item.requirements || 0} 要求`;
+  }
+  if (item.child) {
+    return [item.code, item.number].filter(Boolean).join(" · ") || "子节点";
+  }
+  return item.code || "知识图谱";
+}
+
 function nodeClass(type) {
   return {
+    总览: "root",
     标准: "standard",
     条款: "clause",
     术语: "term",
+    要求: "requirement",
     方法: "method",
     指标: "indicator",
+    对象: "object",
   }[type] || "default";
 }
 
@@ -575,6 +1435,7 @@ function renderEvents() {
         <dt>来源</dt><dd>${escapeHtml(event.source || "未知")}</dd>
         <dt>距离</dt><dd>${escapeHtml(event.distance_km ? `${event.distance_km} km` : "未计算")}</dd>
       </dl>
+      ${event.url ? `<a class="text-link event-link" href="${escapeHtml(event.url)}" target="_blank" rel="noopener noreferrer">查看来源</a>` : ""}
     </article>
   `).join("") || '<div class="empty-state">当前筛选条件下没有事件。</div>';
 }
@@ -582,6 +1443,59 @@ function renderEvents() {
 function formatCoord(lat, lon) {
   if (lat === null || lat === undefined || lon === null || lon === undefined) return "暂无坐标";
   return `${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)}`;
+}
+
+function geolocationErrorMessage(error) {
+  if (!error) return "无法获取当前位置，请稍后重试。";
+  if (error.code === 1) return "定位权限被拒绝，请在浏览器地址栏允许位置权限后重试。";
+  if (error.code === 2) return "无法获取当前位置，请检查系统定位服务或网络状态。";
+  if (error.code === 3) return "定位请求超时，请稍后重试。";
+  return "无法获取当前位置，请稍后重试。";
+}
+
+function getCurrentLocation() {
+  const button = $("#getLocationBtn");
+  if (!navigator.geolocation) {
+    toast("当前浏览器不支持定位功能。");
+    return;
+  }
+  if (!window.isSecureContext) {
+    toast("定位功能需要 HTTPS 环境，请使用 https://georisklab.com.cn 访问。");
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+    button.textContent = "定位中...";
+  }
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      $("#eventLatInput").value = lat.toFixed(6);
+      $("#eventLonInput").value = lon.toFixed(6);
+      if (!$("#eventRadiusFilter").value) {
+        $("#eventRadiusFilter").value = "200";
+      }
+      const accuracy = position.coords.accuracy ? `，精度约 ${Math.round(position.coords.accuracy)} 米` : "";
+      toast(`已获取当前位置${accuracy}，正在查询附近事件。`);
+      try {
+        await loadEvents();
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "获取当前位置";
+        }
+      }
+    },
+    (error) => {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "获取当前位置";
+      }
+      toast(geolocationErrorMessage(error));
+    },
+    {enableHighAccuracy: true, timeout: 10000, maximumAge: 300000},
+  );
 }
 
 async function syncEvents() {
@@ -592,7 +1506,9 @@ async function syncEvents() {
   }
   try {
     const data = await api("/api/disasters/sync", {method: "POST", auth: true});
-    toast(`同步完成：${data.count || 0} 条事件。`);
+    const firecrawl = data.statuses?.Firecrawl;
+    const firecrawlText = firecrawl?.configured ? "，已包含 Firecrawl 联网爬取" : "，Firecrawl 未配置";
+    toast(`同步完成：${data.count || 0} 条事件，新增入库 ${data.new_events || 0} 条${firecrawlText}。`);
     await loadEvents();
   } catch (error) {
     toast(error.message);
@@ -616,6 +1532,9 @@ function appendMessage(role, content, options = {}) {
   }
   messages.appendChild(article);
   messages.scrollTop = messages.scrollHeight;
+  if (!options.loading && !options.skipRecord) {
+    recordMessage(role, content);
+  }
   return article;
 }
 
@@ -635,6 +1554,7 @@ async function sendQuestion(event) {
     state.sessionId = data.debug?.session_id || state.sessionId;
     loading.remove();
     appendMessage("assistant", data.answer || "当前知识库中没有找到足够依据。");
+    updateConversationArtifacts(data, question);
     renderRetrievalSummary(data);
     renderSources(data.sources || []);
     renderRelatedQuestions(question, data.sources || []);
@@ -652,6 +1572,7 @@ function renderSources(sources) {
     ["标准条款", grouped.standard],
     ["图谱节点", grouped.graph],
     ["文档片段", grouped.document],
+    ["联网搜索", grouped.web],
   ].map(([title, items]) => {
     if (!items.length) return "";
     return `
@@ -676,14 +1597,16 @@ function renderSources(sources) {
 function groupSources(sources) {
   return (sources || []).reduce((groups, source) => {
     if (source.type === "document") groups.document.push(source);
+    else if (source.type === "web") groups.web.push(source);
     else if (source.standard || source.clause) groups.standard.push(source);
     else groups.graph.push(source);
     return groups;
-  }, {standard: [], graph: [], document: []});
+  }, {standard: [], graph: [], document: [], web: []});
 }
 
 function sourceLabel(source) {
   if (source.type === "document") return "文档片段";
+  if (source.type === "web") return "联网搜索";
   if (source.standard || source.clause) return "标准条款";
   if (source.type === "graph") return "图谱节点";
   if (source.type === "realtime") return "实时事件";
@@ -692,43 +1615,66 @@ function sourceLabel(source) {
 
 function sourceMeta(source) {
   if (source.type === "document") return source.source || source.title || "本地文档";
+  if (source.type === "web") return source.url || source.source || "联网搜索";
   return [source.standard, source.clause].filter(Boolean).join(" · ") || source.source || "知识图谱";
 }
 
 function renderRetrievalSummary(data) {
-  const container = $("#retrievalSummary");
-  if (!container) return;
+  renderRetrievalSummaryModel(buildRetrievalSummaryModel(data));
+}
+
+function buildRetrievalSummaryModel(data) {
+  if (!data) return null;
   const sources = data.sources || [];
   const standardCount = new Set(sources.map((source) => source.standard).filter(Boolean)).size;
   const graphCount = Number(data.debug?.graph_count || data.graph_context?.length || 0);
   const documentCount = Number(data.debug?.retrieval_count || sources.filter((source) => source.type === "document").length || 0);
+  const webCount = Number(data.debug?.web_count || sources.filter((source) => source.type === "web").length || 0);
   const evidenceCount = sources.length;
   const llmUsage = data.debug?.llm_usage || {};
   const llmErrors = data.debug?.errors || [];
   const isAiMode = Boolean(llmUsage.total_tokens || llmUsage.usage_source === "api") && !llmErrors.some((item) => String(item).includes("生成模型不可用"));
   const modeText = isAiMode ? "AI 生成模式" : "检索证据摘要模式";
+  return {standardCount, graphCount, documentCount, webCount, evidenceCount, isAiMode, modeText};
+}
+
+function renderRetrievalSummaryModel(summary) {
+  const container = $("#retrievalSummary");
+  if (!container) return;
+  if (!summary) {
+    container.innerHTML = '<div class="empty-state">发送问题后显示本次检索过程。</div>';
+    return;
+  }
   container.innerHTML = `
-    <div class="retrieval-mode ${isAiMode ? "ai" : "fallback"}">${modeText}</div>
+    <div class="retrieval-mode ${summary.isAiMode ? "ai" : "fallback"}">${escapeHtml(summary.modeText)}</div>
     <div class="summary-grid">
-      <div><strong>${evidenceCount}</strong><span>证据数量</span></div>
-      <div><strong>${standardCount}</strong><span>命中标准</span></div>
-      <div><strong>${graphCount}</strong><span>图谱节点</span></div>
-      <div><strong>${documentCount}</strong><span>文档片段</span></div>
+      <div><strong>${summary.evidenceCount}</strong><span>证据数量</span></div>
+      <div><strong>${summary.standardCount}</strong><span>命中标准</span></div>
+      <div><strong>${summary.graphCount}</strong><span>图谱节点</span></div>
+      <div><strong>${summary.documentCount}</strong><span>文档片段</span></div>
+      <div><strong>${summary.webCount}</strong><span>联网结果</span></div>
     </div>
-    <p>${isAiMode ? "回答由大模型结合检索证据生成。" : "当前未检测到可用大模型调用结果，页面展示基于检索证据的摘要。"}</p>
+    <p>${summary.isAiMode ? "回答由大模型结合检索证据生成。" : "当前未检测到可用大模型调用结果，页面展示基于检索证据的摘要。"}</p>
   `;
 }
 
 function renderRelatedQuestions(question, sources) {
-  const container = $("#relatedQuestions");
-  if (!container) return;
+  renderRelatedQuestionsFromList(buildRelatedQuestions(question, sources));
+}
+
+function buildRelatedQuestions(question, sources) {
   const disaster = HOT_KEYWORDS.find((word) => question.includes(word)) || "滑坡";
-  const standard = sources.find((source) => source.standard)?.standard || "相关标准";
-  const questions = [
+  const standard = (sources || []).find((source) => source.standard)?.standard || "相关标准";
+  return [
     `${disaster}风险评估需要关注哪些指标？`,
     `${standard}中有哪些监测预警要求？`,
     `针对${disaster}有哪些工程治理措施？`,
   ];
+}
+
+function renderRelatedQuestionsFromList(questions) {
+  const container = $("#relatedQuestions");
+  if (!container) return;
   container.innerHTML = questions.map((item) => `<button type="button">${escapeHtml(item)}</button>`).join("");
   container.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -738,176 +1684,14 @@ function renderRelatedQuestions(question, sources) {
   });
 }
 
-async function loadDocuments(options = {}) {
-  if (!hasToken()) {
-    state.documents = [];
-    renderDocuments();
-    renderRagStatus();
-    renderOverview();
-    return;
-  }
-  try {
-    state.documents = await api("/api/documents", {auth: true});
-    await loadDiagnostics(false);
-    renderDocuments();
-    renderRagStatus();
-    renderOverview();
-  } catch (error) {
-    renderDocuments();
-    if (!options.silent) toast(error.message);
-  }
-}
-
-function renderDocuments() {
-  const container = $("#docList");
-  if (!container) return;
-  if (!hasToken()) {
-    container.innerHTML = `<div class="empty-state">${ADMIN_MESSAGE}</div>`;
-    return;
-  }
-  container.innerHTML = state.documents.map((doc) => `
-    <article class="doc-row">
-      <div>
-        <strong>${escapeHtml(doc.name || "未命名文档")}</strong>
-        <span>${escapeHtml(fileType(doc.name))} · 已入库 · ${escapeHtml(doc.chunks || 0)} 个切片</span>
-        <small>${escapeHtml(doc.source || "")}</small>
-      </div>
-      <button class="danger" type="button" data-source="${escapeHtml(doc.source)}">删除</button>
-    </article>
-  `).join("") || '<div class="empty-state">暂无上传文档。</div>';
-  container.querySelectorAll("[data-source]").forEach((button) => {
-    button.addEventListener("click", () => deleteDocument(button.dataset.source));
-  });
-}
-
-function renderRagStatus() {
-  const container = $("#ragStatusCards");
-  if (!container) return;
-  if (!hasToken()) {
-    container.innerHTML = "";
-    return;
-  }
-  const diagnostics = state.diagnostics || {};
-  const config = diagnostics.config || {};
-  const paths = diagnostics.paths || {};
-  const chunks = state.documents.reduce((total, doc) => total + Number(doc.chunks || 0), 0);
-  const ready = Boolean(config.embedding_ready && paths.chroma_dir);
-  const checkedAt = new Date().toLocaleString("zh-CN", {hour12: false});
-  const cards = [
-    ["文档库名称", "local_docs / Chroma"],
-    ["chunks 数量", chunks],
-    ["索引状态", ready ? "可用" : "需检查"],
-    ["最近检查时间", checkedAt],
-    ["可用于问答", ready && chunks > 0 ? "是" : "否"],
-  ];
-  container.innerHTML = cards.map(([label, value]) => `
-    <article class="rag-status-card">
-      <strong>${escapeHtml(value)}</strong>
-      <span>${escapeHtml(label)}</span>
-    </article>
-  `).join("");
-}
-
-function fileType(name = "") {
-  const ext = name.split(".").pop()?.toUpperCase() || "FILE";
-  return ext;
-}
-
-function setUploadStep(activeStep, doneSteps = []) {
-  $$("#uploadSteps [data-step]").forEach((step) => {
-    step.classList.toggle("active", step.dataset.step === activeStep);
-    step.classList.toggle("done", doneSteps.includes(step.dataset.step));
-  });
-}
-
-async function uploadDocument() {
-  const file = $("#fileInput").files?.[0];
-  const stateText = $("#uploadState");
-  if (!hasToken()) {
-    renderAdminGate("documentsGate");
-    toast(ADMIN_MESSAGE);
-    return;
-  }
-  if (!file) {
-    stateText.textContent = "请先选择文件。";
-    setUploadStep("select");
-    return;
-  }
-  const allowed = [".pdf", ".txt", ".md"];
-  const suffix = `.${file.name.split(".").pop()?.toLowerCase()}`;
-  if (!allowed.includes(suffix)) {
-    stateText.textContent = "文件类型不支持，仅允许 PDF、TXT、MD。";
-    return;
-  }
-  if (file.size > 30 * 1024 * 1024) {
-    stateText.textContent = "文件过大，默认限制为 30MB。";
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("file", file);
-  try {
-    setUploadStep("upload", ["select"]);
-    stateText.textContent = "正在上传文件...";
-    const result = await api("/api/documents/upload", {method: "POST", body: formData, auth: true});
-    setUploadStep("store", ["select", "upload", "parse", "split", "vector"]);
-    stateText.textContent = `入库完成：${result.filename}，切片 ${result.chunk_count} 个。`;
-    await loadDocuments();
-  } catch (error) {
-    stateText.textContent = error.message;
-    setUploadStep("select");
-  }
-}
-
-async function deleteDocument(source) {
-  if (!source) return;
-  try {
-    const data = await api(`/api/documents?source=${encodeURIComponent(source)}`, {method: "DELETE", auth: true});
-    toast(`已删除 ${data.deleted_chunks || 0} 个切片。`);
-    await loadDocuments();
-  } catch (error) {
-    toast(error.message);
-  }
-}
-
-async function rebuildIndex() {
-  if (!hasToken()) {
-    renderAdminGate("documentsGate");
-    toast(ADMIN_MESSAGE);
-    return;
-  }
-  try {
-    const data = await api("/api/documents/rebuild-index", {method: "POST", auth: true});
-    toast(data.message || "索引状态检查完成。");
-    await loadDocuments();
-  } catch (error) {
-    toast(error.message);
-  }
-}
-
-async function loadDiagnostics(showToast = true) {
-  const container = $("#diagnosticsContent");
-  if (!container) return;
-  if (!hasToken()) {
-    container.textContent = ADMIN_MESSAGE;
-    renderAdminGate("diagnosticsGate");
-    return;
-  }
-  try {
-    const data = await api("/api/diagnostics", {auth: true});
-    state.diagnostics = data;
-    container.textContent = JSON.stringify(data, null, 2);
-    renderRagStatus();
-    if (showToast) toast("诊断信息已更新。");
-  } catch (error) {
-    container.textContent = sanitizeErrorMessage(error.message);
-  }
-}
-
 function bindForms() {
   $("#homeSearchForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     performSearch($("#homeSearchInput").value);
+  });
+  $("#globalSearchForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    runGlobalSearch($("#globalSearchInput")?.value || "");
   });
   $("#graphSearchForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -923,34 +1707,34 @@ function bindForms() {
   ["eventTypeFilter", "eventDaysFilter", "eventRadiusFilter", "eventSourceFilter", "eventLatInput", "eventLonInput"].forEach((id) => {
     $(`#${id}`)?.addEventListener("change", () => loadEvents());
   });
+  $("#getLocationBtn")?.addEventListener("click", getCurrentLocation);
   $("#chatForm")?.addEventListener("submit", sendQuestion);
-  $("#newChat")?.addEventListener("click", () => {
-    state.sessionId = null;
-    $("#messages").innerHTML = "";
-    $("#sources").innerHTML = "";
-    $("#relatedQuestions").innerHTML = "";
-    $("#retrievalSummary").innerHTML = '<div class="empty-state">发送问题后显示本次检索过程。</div>';
+  $("#question")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      $("#chatForm")?.requestSubmit();
+    }
   });
-  $("#uploadBtn")?.addEventListener("click", uploadDocument);
-  $("#refreshDocsBtn")?.addEventListener("click", () => loadDocuments());
-  $("#rebuildIndexBtn")?.addEventListener("click", rebuildIndex);
-  $("#diagnosticsBtn")?.addEventListener("click", () => loadDiagnostics(true));
+  $("#newChat")?.addEventListener("click", startNewConversation);
   $("#syncEventsBtn")?.addEventListener("click", syncEvents);
   $("#logoutBtn")?.addEventListener("click", logout);
-  $("#fileInput")?.addEventListener("change", () => setUploadStep("select"));
 }
 
-function init() {
+async function init() {
+  if (!ensureAuthenticatedPage()) return;
   setupNavigation();
   bindForms();
   updateAuthState();
   renderHotKeywords();
   renderUsagePaths();
   window.GeoRiskMap?.renderPlaceholder($("#eventMap"), state.events);
-  appendMessage("assistant", "您好，我可以基于地质灾害标准、知识图谱、已上传文档和实时灾害事件回答问题。回答会尽量给出参考来源。");
+  await loadAccountData();
+  initChatState();
   showPage((location.hash || "#home").slice(1));
   loadDashboard();
   performSearch("滑坡");
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+  init().catch((error) => toast(error.message || "页面初始化失败。"));
+});
