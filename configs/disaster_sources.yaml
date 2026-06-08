@@ -43,20 +43,24 @@ sources:
     source_name: 长沙市自然资源和规划局
     level: city
     disaster_types: [landslide, debris_flow, collapse, geological_disaster]
-    url: http://zygh.changsha.gov.cn
+    url: http://zygh.changsha.gov.cn/zfxxgk/tzgg_1/
     urls:
-      - http://zygh.changsha.gov.cn
-      - http://zygh.changsha.gov.cn/zwgk/
-      - http://zygh.changsha.gov.cn/zfxxgk/
-      - http://zygh.changsha.gov.cn/xxgk/
-      - http://zygh.changsha.gov.cn/gzdt/
-      - http://zygh.changsha.gov.cn/tzgg/
-      - http://zygh.changsha.gov.cn/xwzx/
+      - http://zygh.changsha.gov.cn/zfxxgk/tzgg_1/index.html
+      - http://zygh.changsha.gov.cn/zfxxgk/tzgg_1/index_2.html
+      - http://zygh.changsha.gov.cn/zfxxgk/tzgg_1/index_3.html
+      - http://zygh.changsha.gov.cn/zfxxgk/tzgg_1/index_4.html
+      - http://zygh.changsha.gov.cn/zfxxgk/tzgg_1/index_5.html
+      - http://zygh.changsha.gov.cn/zfxxgk/tzgg_1/index_6.html
+      - http://zygh.changsha.gov.cn/zfxxgk/fdzdgknr/yjgl/
     enabled: true
     fetch_interval_minutes: 60
     parser_type: changsha_natural_resource
     priority: 5
-    notes: 关注长沙地质灾害监测、隐患点、预警、滑坡泥石流相关信息。已配置多个候选 URL 逐一尝试。
+    notes: >
+      从通知公告（tzgg_1，含分页）和应急管理（yjgl）栏目中按关键词筛选
+      地质灾害、矿山地面塌陷、监测预警、地下水监测等相关公开信息。
+      已验证：通知公告分页1-6有约20篇地灾相关文章（矿山塌陷风险调查、地灾防治三年行动计划、
+      监测预警设备运维、卫星遥感监测试点等），应急管理栏目多为微信外链会自动跳过。
   - source_id: mwr_water_rain
     source_name: 全国实时水雨情信息
     level: national

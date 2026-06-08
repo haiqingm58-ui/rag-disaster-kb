@@ -16,6 +16,8 @@ from .common import FOCUS_TERMS, RawItem, extract_title, parse_detail, strip_htm
 
 # Extended keyword set for Changsha natural resources — includes common
 # government-site terms that may co-occur with geohazard articles.
+# Must cover the user-specified filter: 地质灾害 地灾 滑坡 泥石流 崩塌
+# 隐患点 监测预警 强降雨 防汛 塌陷 地面沉降
 CHANGSHA_EXTRA_TERMS = (
     "地灾",
     "隐患",
@@ -31,6 +33,12 @@ CHANGSHA_EXTRA_TERMS = (
     "矿山",
     "地质环境",
     "恢复治理",
+    "塌陷",
+    "地面沉降",
+    "强降雨",
+    "降雨",
+    "地裂缝",
+    "预警",
 )
 
 ALL_TERMS = FOCUS_TERMS + CHANGSHA_EXTRA_TERMS
