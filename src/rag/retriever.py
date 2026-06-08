@@ -21,10 +21,15 @@ logger = logging.getLogger(__name__)
 
 _reranker = None
 _last_retrieval_errors: list[str] = []
+_last_retrieval_debug: dict[str, object] = {}
 
 
 def get_last_retrieval_errors() -> list[str]:
     return list(_last_retrieval_errors)
+
+
+def get_last_retrieval_debug() -> dict[str, object]:
+    return dict(_last_retrieval_debug)
 
 
 def _get_reranker():
@@ -73,6 +78,7 @@ def _filter_by_threshold(
     filtered = []
     for doc, score in docs_with_scores:
         if score <= threshold:
+            doc.metadata["score"] = float(score)
             filtered.append(doc)
     return filtered
 
@@ -141,12 +147,14 @@ def retrieve_all(
     enable_docs: bool = True,
     enable_events: bool = True,
     llm: BaseChatModel = None,
+    k: int | None = None,
 ) -> List[Document]:
     """Retrieve from all enabled sources with full pipeline.
 
     Pipeline: rewrite query → retrieve with scores → threshold filter → rerank
     """
     _last_retrieval_errors.clear()
+    _last_retrieval_debug.clear()
 
     # Step 0: Chinese disaster term expansion + query rewriting
     expanded_query = expand_query_with_terms(query)
@@ -155,19 +163,35 @@ def retrieve_all(
         rewritten = rewrite_query(expanded_query, llm)
         search_query = f"{rewritten} {expanded_query}" if rewritten != expanded_query else expanded_query
 
+    prefetch_k = max(k * 4, RETRIEVAL_PREFETCH) if k else RETRIEVAL_PREFETCH
+    final_k = k or RERANK_TOP_K
+    _last_retrieval_debug.update({
+        "original_query": query,
+        "expanded_query": expanded_query,
+        "search_query": search_query,
+        "prefetch_k": prefetch_k,
+        "final_k": final_k,
+        "enable_docs": enable_docs,
+        "enable_events": enable_events,
+    })
+
     results: List[Document] = []
 
     if enable_docs:
-        docs = retrieve_from_docs(search_query)
+        docs = retrieve_from_docs(search_query, k=prefetch_k)[:final_k]
         for d in docs:
             d.metadata["source_label"] = "[文档]"
+            d.metadata["retrieval_query"] = search_query
         results.extend(docs)
+        _last_retrieval_debug["doc_count"] = len(docs)
 
     if enable_events:
-        events = retrieve_from_events(search_query)
+        events = retrieve_from_events(search_query, k=prefetch_k)[:final_k]
         for d in events:
             d.metadata["source_label"] = "[实时]"
+            d.metadata["retrieval_query"] = search_query
         results.extend(events)
+        _last_retrieval_debug["event_count"] = len(events)
 
     # Deduplicate by content
     seen = set()
@@ -176,4 +200,5 @@ def retrieve_all(
         if d.page_content not in seen:
             seen.add(d.page_content)
             unique.append(d)
+    _last_retrieval_debug["unique_count"] = len(unique)
     return unique

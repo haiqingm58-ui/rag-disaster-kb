@@ -2,16 +2,31 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app_server.api import auth, chat, diagnostics, disasters, documents, graph, health
+from app_server.api import (
+    auth,
+    chat,
+    crawler_admin,
+    diagnostics,
+    disaster_events,
+    disaster_sources,
+    disasters,
+    documents,
+    graph,
+    health,
+    user_data,
+)
 from app_server.logging_config import setup_logging
+from app_server.security import AUTH_COOKIE_NAME, decode_access_token
+from app_server.services.disaster_scheduler import disaster_scheduler
 from app_server.settings import settings
 
 
@@ -19,11 +34,32 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    disaster_scheduler.start()
+    try:
+        yield
+    finally:
+        disaster_scheduler.stop()
+
+
+def _has_valid_page_session(request: Request) -> bool:
+    token = request.cookies.get(AUTH_COOKIE_NAME)
+    if not token:
+        return False
+    try:
+        decode_access_token(token)
+    except HTTPException:
+        return False
+    return True
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="地质灾害知识图谱 RAG 问答系统",
         description="FastAPI entry for Graph-RAG, realtime disaster data and document management.",
         version=settings.version,
+        lifespan=lifespan,
     )
 
     cors_origins = settings.cors_origins
@@ -87,16 +123,26 @@ def create_app() -> FastAPI:
     app.include_router(documents.router, prefix="/api")
     app.include_router(graph.router, prefix="/api")
     app.include_router(disasters.router, prefix="/api")
+    app.include_router(disaster_events.router, prefix="/api")
+    app.include_router(disaster_sources.router, prefix="/api")
+    app.include_router(crawler_admin.router, prefix="/api")
+    app.include_router(user_data.router, prefix="/api")
 
     app.mount("/static", StaticFiles(directory="app_server/static"), name="static")
 
     @app.get("/")
     def index() -> FileResponse:
-        return FileResponse("app_server/static/index.html")
+        return FileResponse("app_server/static/index.html", headers={"Cache-Control": "no-store"})
 
     @app.get("/main.html")
-    def main_page() -> FileResponse:
-        return FileResponse("app_server/static/main.html")
+    def main_page(request: Request):
+        if not _has_valid_page_session(request):
+            return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+        return FileResponse("app_server/static/main.html", headers={"Cache-Control": "no-store"})
+
+    @app.get("/graph")
+    def graph_page() -> RedirectResponse:
+        return RedirectResponse(url="/main.html#graph")
 
     return app
 

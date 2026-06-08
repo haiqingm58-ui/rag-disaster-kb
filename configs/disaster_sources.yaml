@@ -1,0 +1,201 @@
+sources:
+  - source_id: hunan_natural_resource
+    source_name: 湖南省自然资源厅地质灾害预警
+    level: province
+    disaster_types: [landslide, debris_flow, collapse, geological_disaster]
+    url: http://zrzyt.hunan.gov.cn/zrzyt/xxgk/yjgl/dzzh/index.html
+    enabled: true
+    fetch_interval_minutes: 60
+    parser_type: hunan_natural_resource
+    priority: 1
+    notes: 重点采集地质灾害气象风险预警、滑坡、泥石流、崩塌相关公开信息。
+  - source_id: cma_warning
+    source_name: 中央气象台灾害预警
+    level: national
+    disaster_types: [rainfall, mountain_flood, geological_disaster]
+    url: http://www.nmc.cn/publish/country/warning.html
+    enabled: true
+    fetch_interval_minutes: 15
+    parser_type: cma_warning
+    priority: 2
+    notes: 关注地质灾害气象风险预警、山洪灾害气象预警、暴雨预警。
+  - source_id: hunan_water
+    source_name: 湖南省水利厅
+    level: province
+    disaster_types: [flood, mountain_flood, rainfall, water_level, reservoir]
+    url: http://slt.hunan.gov.cn
+    enabled: true
+    fetch_interval_minutes: 60
+    parser_type: hunan_water
+    priority: 3
+    notes: 关注洪水预警、防汛动态、山洪灾害风险预警、水旱灾害防御。
+  - source_id: changsha_water
+    source_name: 长沙市水利局
+    level: city
+    disaster_types: [flood, mountain_flood, rainfall, water_level, reservoir]
+    url: http://cswater.changsha.gov.cn
+    enabled: true
+    fetch_interval_minutes: 60
+    parser_type: changsha_water
+    priority: 4
+    notes: 关注长沙本地水情、防汛、山洪、水库河道信息。
+  - source_id: changsha_natural_resource
+    source_name: 长沙市自然资源和规划局
+    level: city
+    disaster_types: [landslide, debris_flow, collapse, geological_disaster]
+    url: http://zygh.changsha.gov.cn
+    enabled: true
+    fetch_interval_minutes: 60
+    parser_type: changsha_natural_resource
+    priority: 5
+    notes: 关注长沙地质灾害监测、隐患点、预警、滑坡泥石流相关信息。
+  - source_id: mwr_water_rain
+    source_name: 全国实时水雨情信息
+    level: national
+    disaster_types: [flood, rainfall, water_level]
+    url: http://xxfb.mwr.cn
+    enabled: false
+    fetch_interval_minutes: 30
+    parser_type: generic_html
+    priority: 20
+    notes: 后续扩展，采集前需确认公开页面结构与 robots 规则。
+  - source_id: cigem
+    source_name: 中国地质环境信息网
+    level: national
+    disaster_types: [geological_disaster, landslide, debris_flow]
+    url: https://www.cigem.cn
+    enabled: false
+    fetch_interval_minutes: 120
+    parser_type: generic_html
+    priority: 21
+    notes: 后续扩展。
+  - source_id: cigem_cgs
+    source_name: 中国地质环境监测院
+    level: national
+    disaster_types: [geological_disaster, landslide, debris_flow]
+    url: https://www.cigem.cgs.gov.cn
+    enabled: false
+    fetch_interval_minutes: 120
+    parser_type: generic_html
+    priority: 22
+    notes: 后续扩展。
+  - source_id: ndrcc
+    source_name: 国家减灾网
+    level: national
+    disaster_types: [flood, landslide, debris_flow, rainfall]
+    url: http://www.ndrcc.org.cn
+    enabled: false
+    fetch_interval_minutes: 180
+    parser_type: generic_html
+    priority: 23
+    notes: 后续扩展。
+  - source_id: emerinfo
+    source_name: 中国应急信息网
+    level: national
+    disaster_types: [flood, landslide, debris_flow, rainfall]
+    url: https://www.emerinfo.cn
+    enabled: false
+    fetch_interval_minutes: 180
+    parser_type: generic_html
+    priority: 24
+    notes: 后续扩展。
+  - source_id: cma_data
+    source_name: 中国气象数据网
+    level: national
+    disaster_types: [rainfall]
+    url: https://data.cma.cn
+    enabled: false
+    fetch_interval_minutes: 360
+    parser_type: generic_html
+    priority: 25
+    notes: 数据接口可能需要授权，默认不采集。
+  - source_id: hunan_geology_institute
+    source_name: 湖南省地质院
+    level: province
+    disaster_types: [geological_disaster, landslide, debris_flow]
+    url: https://hnsdzy.hunan.gov.cn
+    enabled: false
+    fetch_interval_minutes: 180
+    parser_type: generic_html
+    priority: 26
+    notes: 后续扩展。
+  - source_id: hunan_emergency
+    source_name: 湖南省应急管理厅
+    level: province
+    disaster_types: [flood, landslide, debris_flow, rainfall]
+    url: https://yjt.hunan.gov.cn
+    enabled: false
+    fetch_interval_minutes: 120
+    parser_type: generic_html
+    priority: 27
+    notes: 后续扩展。
+  - source_id: hunan_natural_resource_center
+    source_name: 湖南省自然资源事务中心
+    level: province
+    disaster_types: [geological_disaster, landslide, debris_flow]
+    url: https://zrzyt.hunan.gov.cn
+    enabled: false
+    fetch_interval_minutes: 180
+    parser_type: generic_html
+    priority: 28
+    notes: 后续扩展。
+  - source_id: changsha_hydrology
+    source_name: 长沙市水文局
+    level: city
+    disaster_types: [flood, rainfall, water_level]
+    url: http://csswj.changsha.gov.cn
+    enabled: false
+    fetch_interval_minutes: 60
+    parser_type: generic_html
+    priority: 29
+    notes: 后续扩展。
+  - source_id: changsha_flood_defense
+    source_name: 长沙市水旱灾害防御中心
+    level: city
+    disaster_types: [flood, mountain_flood, rainfall]
+    url: http://cswater.changsha.gov.cn
+    enabled: false
+    fetch_interval_minutes: 60
+    parser_type: generic_html
+    priority: 30
+    notes: 后续扩展。
+  - source_id: changsha_data_urban_flood
+    source_name: 长沙市城市内涝公开信息
+    level: city
+    disaster_types: [flood, rainfall]
+    url: https://www.changsha.gov.cn
+    enabled: false
+    fetch_interval_minutes: 120
+    parser_type: generic_html
+    priority: 31
+    notes: 后续扩展，仅采集公开城市内涝信息。
+  - source_id: changsha_county_gov
+    source_name: 长沙县人民政府水利应急栏目
+    level: city
+    disaster_types: [flood, mountain_flood, geological_disaster]
+    url: https://www.csx.gov.cn
+    enabled: false
+    fetch_interval_minutes: 120
+    parser_type: generic_html
+    priority: 32
+    notes: 后续扩展。
+  - source_id: yuelu_xiangjiang_new_area
+    source_name: 岳麓区/湘江新区公开水利应急信息
+    level: city
+    disaster_types: [flood, landslide, debris_flow, rainfall]
+    url: https://www.yuelu.gov.cn
+    enabled: false
+    fetch_interval_minutes: 120
+    parser_type: generic_html
+    priority: 33
+    notes: 后续扩展。
+  - source_id: tower_sentinel_reports
+    source_name: 湖南省铁塔哨兵公开报道
+    level: province
+    disaster_types: [geological_disaster, landslide]
+    url: https://www.hunan.gov.cn
+    enabled: false
+    fetch_interval_minutes: 360
+    parser_type: generic_html
+    priority: 34
+    notes: 仅采集公开报道或公开接口信息，不访问非公开监控接口。

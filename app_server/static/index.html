@@ -4,74 +4,326 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>登录 - 地质灾害知识图谱与智能问答系统</title>
-  <link rel="stylesheet" href="/static/assets/style.css?v=auth-2">
+  <link rel="stylesheet" href="/static/assets/style.css?v=auth-register-3">
 </head>
 <body class="login-page">
-  <main class="login-shell">
-    <section class="login-visual" aria-label="地质灾害行业标准知识图谱概览">
-      <img src="/static/assets/login-hero.png" alt="地质灾害行业标准知识图谱数据概览">
+  <main class="landing-shell">
+    <section class="landing-hero" aria-label="地质灾害知识图谱">
+      <div class="landing-logo-block">
+        <img src="/static/assets/georisk-logo-transparent.png" alt="GeoRisk logo">
+      </div>
+      <h1>地质灾害知识图谱</h1>
+      <div class="landing-actions">
+        <a class="primary" href="#loginForm" data-login-required>标准浏览</a>
+        <a class="secondary" href="#loginForm" data-login-required>知识点检索</a>
+        <a class="secondary" href="#loginForm" data-login-required>专题图谱构建</a>
+      </div>
     </section>
 
-    <section class="login-panel" aria-label="系统登录">
-      <div class="login-brand">
-        <span>GeoRisk Knowledge AI</span>
-        <h1>地质灾害知识图谱与智能问答系统</h1>
-        <p>洪水、山地滑坡、标准图谱、实时事件与专业文档统一检索。</p>
-      </div>
+    <section class="landing-side">
+      <div class="login-panel auth-panel" aria-label="用户登录与注册">
+        <div class="auth-tabs" role="tablist" aria-label="认证方式">
+          <button id="loginTab" class="active" type="button" data-auth-mode="login">登录</button>
+          <button id="registerTab" type="button" data-auth-mode="register">注册</button>
+          <button id="resetTab" type="button" data-auth-mode="reset">忘记密码</button>
+        </div>
 
-      <form id="loginForm" class="login-form">
-        <label>
-          用户名
-          <input id="username" name="username" type="text" autocomplete="username" placeholder="请输入用户名" required>
-        </label>
-        <label>
-          密码
-          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required>
-        </label>
-        <button id="loginSubmit" type="submit" class="login-submit">登录进入系统</button>
-        <p id="loginMessage" class="login-message" role="status"></p>
-      </form>
+        <form id="loginForm" class="auth-mode" aria-label="用户登录">
+          <h2>用户登录</h2>
+          <label class="login-field">
+            <span class="field-icon">U</span>
+            <input id="username" name="username" type="text" autocomplete="username" placeholder="用户名" required>
+          </label>
+          <label class="login-field">
+            <span class="field-icon">P</span>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="密码" required>
+          </label>
+          <button id="loginSubmit" type="submit" class="login-submit">登录</button>
+        </form>
+
+        <form id="registerForm" class="auth-mode hidden" aria-label="用户注册">
+          <h2>用户注册</h2>
+          <label class="login-field">
+            <span class="field-icon">U</span>
+            <input id="registerUsername" name="username" type="text" autocomplete="username" placeholder="用户名，2-40 位" required>
+          </label>
+          <label class="login-field">
+            <span class="field-icon">E</span>
+            <input id="registerEmail" name="email" type="email" autocomplete="email" placeholder="邮箱" required>
+          </label>
+          <label class="login-field">
+            <span class="field-icon">P</span>
+            <input id="registerPassword" name="password" type="password" autocomplete="new-password" placeholder="密码，含大小写字母和数字" required>
+          </label>
+          <label class="login-field">
+            <span class="field-icon">I</span>
+            <input id="inviteCode" name="invite_code" type="text" autocomplete="off" placeholder="请输入管理员提供的邀请码" required>
+          </label>
+          <div class="verification-row">
+            <label class="login-field">
+              <span class="field-icon">C</span>
+              <input id="verificationCode" name="verification_code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="邮箱验证码" required>
+            </label>
+            <button id="sendCodeBtn" class="secondary" type="button">发送验证码</button>
+          </div>
+          <button id="registerSubmit" type="submit" class="login-submit">注册并登录</button>
+        </form>
+
+        <form id="resetForm" class="auth-mode hidden" aria-label="忘记密码">
+          <h2>修改密码</h2>
+          <label class="login-field">
+            <span class="field-icon">E</span>
+            <input id="resetEmail" name="email" type="email" autocomplete="email" placeholder="注册邮箱" required>
+          </label>
+          <label class="login-field">
+            <span class="field-icon">P</span>
+            <input id="resetPassword" name="new_password" type="password" autocomplete="new-password" placeholder="新密码，含大小写字母和数字" required>
+          </label>
+          <div class="verification-row">
+            <label class="login-field">
+              <span class="field-icon">C</span>
+              <input id="resetCode" name="verification_code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="邮箱验证码" required>
+            </label>
+            <button id="sendResetCodeBtn" class="secondary" type="button">发送验证码</button>
+          </div>
+          <button id="resetSubmit" type="submit" class="login-submit">修改密码</button>
+        </form>
+
+        <p class="login-help">注册和修改密码都需要邮箱验证码；密码必须包含大小写英文字母和数字</p>
+        <p id="authMessage" class="login-message" role="status"></p>
+      </div>
     </section>
   </main>
 
   <script>
-    const form = document.getElementById("loginForm");
-    const message = document.getElementById("loginMessage");
-    const submit = document.getElementById("loginSubmit");
+    const loginForm = document.getElementById("loginForm");
+    const registerForm = document.getElementById("registerForm");
+    const resetForm = document.getElementById("resetForm");
+    const authMessage = document.getElementById("authMessage");
+    const loginSubmit = document.getElementById("loginSubmit");
+    const registerSubmit = document.getElementById("registerSubmit");
+    const resetSubmit = document.getElementById("resetSubmit");
+    const sendCodeBtn = document.getElementById("sendCodeBtn");
+    const sendResetCodeBtn = document.getElementById("sendResetCodeBtn");
+    const usernameInput = document.getElementById("username");
+    let codeTimer = null;
+    let resetCodeTimer = null;
 
-    form.addEventListener("submit", async (event) => {
+    document.querySelectorAll("[data-login-required]").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        showAuthMode("login");
+        setMessage("请先登录或注册，成功后即可进入系统。");
+        loginForm.scrollIntoView({behavior: "smooth", block: "center"});
+        usernameInput.focus();
+      });
+    });
+
+    document.querySelectorAll("[data-auth-mode]").forEach((button) => {
+      button.addEventListener("click", () => showAuthMode(button.dataset.authMode));
+    });
+
+    function showAuthMode(mode) {
+      const isRegister = mode === "register";
+      const isReset = mode === "reset";
+      loginForm.classList.toggle("hidden", isRegister || isReset);
+      registerForm.classList.toggle("hidden", !isRegister);
+      resetForm.classList.toggle("hidden", !isReset);
+      document.getElementById("loginTab").classList.toggle("active", !isRegister && !isReset);
+      document.getElementById("registerTab").classList.toggle("active", isRegister);
+      document.getElementById("resetTab").classList.toggle("active", isReset);
+      setMessage("");
+    }
+
+    function setMessage(text) {
+      authMessage.textContent = text || "";
+    }
+
+    function storeSession(data, fallbackUsername) {
+      localStorage.setItem("rag_access_token", data.access_token);
+      localStorage.setItem("rag_token_expires_at", String(data.expires_at || ""));
+      localStorage.setItem("rag_username", data.user?.username || fallbackUsername);
+      localStorage.setItem("rag_user_role", data.user?.role || "user");
+      window.location.href = "/main.html#home";
+    }
+
+    async function postJson(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || "请求失败，请稍后重试。");
+      }
+      return data;
+    }
+
+    function startCodeCountdown() {
+      let seconds = 60;
+      clearInterval(codeTimer);
+      sendCodeBtn.disabled = true;
+      sendCodeBtn.textContent = `${seconds}s`;
+      codeTimer = setInterval(() => {
+        seconds -= 1;
+        if (seconds <= 0) {
+          clearInterval(codeTimer);
+          sendCodeBtn.disabled = false;
+          sendCodeBtn.textContent = "发送验证码";
+        } else {
+          sendCodeBtn.textContent = `${seconds}s`;
+        }
+      }, 1000);
+    }
+
+    function startResetCodeCountdown() {
+      let seconds = 60;
+      clearInterval(resetCodeTimer);
+      sendResetCodeBtn.disabled = true;
+      sendResetCodeBtn.textContent = `${seconds}s`;
+      resetCodeTimer = setInterval(() => {
+        seconds -= 1;
+        if (seconds <= 0) {
+          clearInterval(resetCodeTimer);
+          sendResetCodeBtn.disabled = false;
+          sendResetCodeBtn.textContent = "发送验证码";
+        } else {
+          sendResetCodeBtn.textContent = `${seconds}s`;
+        }
+      }, 1000);
+    }
+
+    function passwordStrengthMessage(password) {
+      if (password.length < 8 || password.length > 128) return "密码需为 8-128 位字符。";
+      if (!/[a-z]/.test(password)) return "密码必须包含小写英文字母。";
+      if (!/[A-Z]/.test(password)) return "密码必须包含大写英文字母。";
+      if (!/\d/.test(password)) return "密码必须包含数字。";
+      return "";
+    }
+
+    loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const username = document.getElementById("username").value.trim();
       const password = document.getElementById("password").value;
       if (!username || !password) {
-        message.textContent = "请输入用户名和密码。";
+        setMessage("请输入用户名和密码。");
         return;
       }
 
-      submit.disabled = true;
-      submit.textContent = "正在登录...";
-      message.textContent = "";
+      loginSubmit.disabled = true;
+      loginSubmit.textContent = "正在登录...";
+      setMessage("");
 
       try {
-        const response = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({username, password})
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.detail || "登录失败，请检查用户名和密码。");
-        }
-        localStorage.setItem("rag_access_token", data.access_token);
-        localStorage.setItem("rag_token_expires_at", String(data.expires_at || ""));
-        localStorage.setItem("rag_username", data.user?.username || username);
-        localStorage.setItem("rag_user_role", data.user?.role || "admin");
-        window.location.href = "/main.html";
+        const data = await postJson("/api/auth/login", {username, password});
+        storeSession(data, username);
       } catch (error) {
-        message.textContent = error.message;
+        setMessage(error.message);
       } finally {
-        submit.disabled = false;
-        submit.textContent = "登录进入系统";
+        loginSubmit.disabled = false;
+        loginSubmit.textContent = "登录";
+      }
+    });
+
+    sendCodeBtn.addEventListener("click", async () => {
+      const email = document.getElementById("registerEmail").value.trim();
+      const invite_code = document.getElementById("inviteCode").value.trim();
+      if (!email || !invite_code) {
+        setMessage("请先填写邮箱和邀请码。");
+        return;
+      }
+      sendCodeBtn.disabled = true;
+      sendCodeBtn.textContent = "发送中...";
+      setMessage("");
+      try {
+        await postJson("/api/auth/register/send-code", {email, invite_code});
+        setMessage("验证码已发送，请查收邮箱。");
+        startCodeCountdown();
+      } catch (error) {
+        sendCodeBtn.disabled = false;
+        sendCodeBtn.textContent = "发送验证码";
+        setMessage(error.message);
+      }
+    });
+
+    registerForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const username = document.getElementById("registerUsername").value.trim();
+      const email = document.getElementById("registerEmail").value.trim();
+      const password = document.getElementById("registerPassword").value;
+      const invite_code = document.getElementById("inviteCode").value.trim();
+      const verification_code = document.getElementById("verificationCode").value.trim();
+      if (!username || !email || !password || !invite_code || !verification_code) {
+        setMessage("请完整填写注册信息、邀请码和邮箱验证码。");
+        return;
+      }
+      const passwordError = passwordStrengthMessage(password);
+      if (passwordError) {
+        setMessage(passwordError);
+        return;
+      }
+      registerSubmit.disabled = true;
+      registerSubmit.textContent = "正在注册...";
+      setMessage("");
+      try {
+        const data = await postJson("/api/auth/register", {username, email, password, invite_code, verification_code});
+        storeSession(data, username);
+      } catch (error) {
+        setMessage(error.message);
+      } finally {
+        registerSubmit.disabled = false;
+        registerSubmit.textContent = "注册并登录";
+      }
+    });
+
+    sendResetCodeBtn.addEventListener("click", async () => {
+      const email = document.getElementById("resetEmail").value.trim();
+      if (!email) {
+        setMessage("请先填写注册邮箱。");
+        return;
+      }
+      sendResetCodeBtn.disabled = true;
+      sendResetCodeBtn.textContent = "发送中...";
+      setMessage("");
+      try {
+        await postJson("/api/auth/password-reset/send-code", {email});
+        setMessage("验证码已发送，请查收邮箱。");
+        startResetCodeCountdown();
+      } catch (error) {
+        sendResetCodeBtn.disabled = false;
+        sendResetCodeBtn.textContent = "发送验证码";
+        setMessage(error.message);
+      }
+    });
+
+    resetForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const email = document.getElementById("resetEmail").value.trim();
+      const new_password = document.getElementById("resetPassword").value;
+      const verification_code = document.getElementById("resetCode").value.trim();
+      if (!email || !new_password || !verification_code) {
+        setMessage("请完整填写邮箱、新密码和邮箱验证码。");
+        return;
+      }
+      const passwordError = passwordStrengthMessage(new_password);
+      if (passwordError) {
+        setMessage(passwordError);
+        return;
+      }
+      resetSubmit.disabled = true;
+      resetSubmit.textContent = "正在修改...";
+      setMessage("");
+      try {
+        await postJson("/api/auth/password-reset", {email, new_password, verification_code});
+        setMessage("密码已修改，请使用新密码登录。");
+        showAuthMode("login");
+        document.getElementById("username").focus();
+      } catch (error) {
+        setMessage(error.message);
+      } finally {
+        resetSubmit.disabled = false;
+        resetSubmit.textContent = "修改密码";
       }
     });
   </script>
