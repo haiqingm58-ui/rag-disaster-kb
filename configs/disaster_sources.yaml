@@ -44,11 +44,19 @@ sources:
     level: city
     disaster_types: [landslide, debris_flow, collapse, geological_disaster]
     url: http://zygh.changsha.gov.cn
+    urls:
+      - http://zygh.changsha.gov.cn
+      - http://zygh.changsha.gov.cn/zwgk/
+      - http://zygh.changsha.gov.cn/zfxxgk/
+      - http://zygh.changsha.gov.cn/xxgk/
+      - http://zygh.changsha.gov.cn/gzdt/
+      - http://zygh.changsha.gov.cn/tzgg/
+      - http://zygh.changsha.gov.cn/xwzx/
     enabled: true
     fetch_interval_minutes: 60
     parser_type: changsha_natural_resource
     priority: 5
-    notes: 关注长沙地质灾害监测、隐患点、预警、滑坡泥石流相关信息。
+    notes: 关注长沙地质灾害监测、隐患点、预警、滑坡泥石流相关信息。已配置多个候选 URL 逐一尝试。
   - source_id: mwr_water_rain
     source_name: 全国实时水雨情信息
     level: national

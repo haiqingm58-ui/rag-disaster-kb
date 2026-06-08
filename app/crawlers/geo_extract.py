@@ -3,8 +3,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from config import DEFAULT_LATITUDE, DEFAULT_LONGITUDE
-
 
 PLACE_CENTERS: dict[str, tuple[float, float, str, dict[str, str]]] = {
     "长沙市": (28.2282, 112.9388, "city", {"province": "湖南省", "city": "长沙市"}),
@@ -75,6 +73,8 @@ def extract_geo(text: str) -> dict[str, Any]:
                 "geo_precision": precision,
             }
 
+    # No location matched — leave coordinates null rather than defaulting to Changsha.
+    # Events without real coordinates should not show on the map.
     return {
         "province": "",
         "city": "",
@@ -82,7 +82,7 @@ def extract_geo(text: str) -> dict[str, Any]:
         "town": "",
         "address_text": "",
         "river_name": river_name,
-        "lat": DEFAULT_LATITUDE,
-        "lng": DEFAULT_LONGITUDE,
-        "geo_precision": "city",
+        "lat": None,
+        "lng": None,
+        "geo_precision": "unknown",
     }

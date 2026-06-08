@@ -12,9 +12,11 @@ function escapeHtml(value) {
 
 function eventPoints(events) {
   return (Array.isArray(events) ? events : []).filter((event) => {
-    const lat = Number(event.latitude);
-    const lng = Number(event.longitude);
-    return Number.isFinite(lat) && Number.isFinite(lng);
+    const lat = event.latitude;
+    const lng = event.longitude;
+    // Explicit null/undefined check — Number(null) is 0 which would pass isFinite.
+    if (lat == null || lng == null) return false;
+    return Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
   });
 }
 
@@ -64,14 +66,35 @@ function ensureLeaflet() {
   return window.__georiskLeafletPromise;
 }
 
+function geoPrecisionLabel(precision) {
+  const labels = {
+    exact_point: "📍 精确坐标",
+    county: "📌 区县级定位",
+    city: "📌 市级定位",
+    province: "📌 省级定位",
+    town: "📌 乡镇级定位",
+  };
+  return labels[precision] || "⚠️ 未知精度";
+}
+
+function isSystemInferred(event) {
+  // Coordinates inferred from place names by the system (not official exact points).
+  return event.geo_precision && event.geo_precision !== "exact_point";
+}
+
 function popupHtml(event) {
   const link = event.url ? `<a href="${escapeHtml(event.url)}" target="_blank" rel="noopener noreferrer">查看原文</a>` : "";
+  const precision = geoPrecisionLabel(event.geo_precision);
+  const inferredNote = isSystemInferred(event)
+    ? '<p class="geo-warning">⚠️ 坐标为系统根据地名推断，非官方精确点位</p>'
+    : "";
   return `
     <strong>${escapeHtml(event.title || "灾害信息")}</strong>
-    <p>${escapeHtml(event.event_type || event.event_type_group || "灾害")}</p>
-    <p>${escapeHtml(event.risk || "未知等级")} · ${escapeHtml(event.time || "时间未知")}</p>
-    <p>${escapeHtml(event.source || "未知来源")}</p>
+    <p>${escapeHtml(event.event_type || event.event_type_group || "灾害")} · ${escapeHtml(event.risk || "未知等级")}</p>
+    <p>${escapeHtml(event.time || "时间未知")} · ${escapeHtml(event.source || "未知来源")}</p>
+    <p>${precision}</p>
     <p>${escapeHtml(event.summary || event.place || "")}</p>
+    ${inferredNote}
     ${link}
   `;
 }

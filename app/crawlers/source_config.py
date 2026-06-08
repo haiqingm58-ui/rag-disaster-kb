@@ -22,6 +22,7 @@ class DisasterSource:
     parser_type: str
     priority: int = 100
     notes: str = ""
+    urls: list[str] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -32,23 +33,30 @@ class DisasterSource:
             "level",
             "disaster_types",
             "url",
+            "urls",
             "enabled",
             "fetch_interval_minutes",
             "parser_type",
             "priority",
             "notes",
         }
+        url_list = list(data.get("urls") or [])
+        # If single url is provided and not already in urls, prepend it.
+        single_url = str(data.get("url") or "")
+        if single_url and single_url not in url_list:
+            url_list.insert(0, single_url)
         return cls(
             source_id=str(data["source_id"]),
             source_name=str(data["source_name"]),
             level=str(data.get("level") or "unknown"),
             disaster_types=list(data.get("disaster_types") or []),
-            url=str(data["url"]),
+            url=str(data.get("url") or ""),
             enabled=bool(data.get("enabled", False)),
             fetch_interval_minutes=int(data.get("fetch_interval_minutes") or 60),
             parser_type=str(data.get("parser_type") or "generic_html"),
             priority=int(data.get("priority") or 100),
             notes=str(data.get("notes") or ""),
+            urls=url_list,
             extra={key: value for key, value in data.items() if key not in known},
         )
 
