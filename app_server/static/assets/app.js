@@ -1,5 +1,13 @@
 const HOT_KEYWORDS = ["滑坡", "泥石流", "暴雨", "风险评估", "监测预警", "抗滑桩", "地震应急"];
 const SEARCH_GROUPS = ["标准规范", "知识点", "灾害类型", "工程措施", "监测预警", "实时事件", "文档片段"];
+const HOME_SEARCH_PAGE_SIZE = 4;
+const OFFICIAL_SOURCE_IDS = new Set([
+  "hunan_natural_resource",
+  "cma_warning",
+  "hunan_water",
+  "changsha_water",
+  "changsha_natural_resource",
+]);
 const ADMIN_MESSAGE = "你需要登录管理员账号后才能使用此功能";
 const PUBLIC_PAGES = new Set(["home", "chat", "graph", "standards", "events", "about"]);
 const USAGE_PATHS = [
@@ -33,6 +41,11 @@ const state = {
   graphResults: [],
   graphView: "overview",
   expandedStandardCode: "",
+  homeSearch: {
+    grouped: null,
+    keyword: "",
+    page: 1,
+  },
   conversations: loadStoredConversations(),
   activeConversationId: localStorage.getItem(userStorageKey("active_conversation")) || "",
 };
@@ -70,6 +83,8 @@ function saveConversations() {
   localStorage.setItem(userStorageKey("conversations"), JSON.stringify(state.conversations.slice(0, 30)));
   if (state.activeConversationId) {
     localStorage.setItem(userStorageKey("active_conversation"), state.activeConversationId);
+  } else {
+    localStorage.removeItem(userStorageKey("active_conversation"));
   }
   queueAccountDataSave();
 }
@@ -193,6 +208,31 @@ function startNewConversation() {
   appendMessage("assistant", "已创建新会话。旧对话已保存在右侧历史会话中。", {skipRecord: true});
 }
 
+function deleteConversation(conversationId) {
+  const conversation = state.conversations.find((item) => item.id === conversationId);
+  if (!conversation) return;
+  const title = conversation.title || "新会话";
+  if (!window.confirm(`确定删除“${title}”吗？`)) return;
+  const wasActive = state.activeConversationId === conversationId;
+  state.conversations = state.conversations.filter((item) => item.id !== conversationId);
+  if (!wasActive) {
+    saveConversations();
+    renderConversationList();
+    return;
+  }
+  const next = state.conversations[0];
+  state.activeConversationId = next?.id || "";
+  state.sessionId = next?.sessionId || null;
+  if (next) {
+    restoreConversation(next.id);
+    return;
+  }
+  saveConversations();
+  clearChatPanels();
+  appendMessage("assistant", "历史会话已删除。点击“新建会话”或直接提问即可开始新的问答。", {skipRecord: true});
+  renderConversationList();
+}
+
 function initChatState() {
   const savedActive = state.conversations.find((item) => item.id === state.activeConversationId);
   if (savedActive) {
@@ -216,13 +256,22 @@ function renderConversationList() {
     return;
   }
   container.innerHTML = state.conversations.slice(0, 12).map((conversation) => `
-    <button class="conversation-item ${conversation.id === state.activeConversationId ? "active" : ""}" type="button" data-conversation-id="${escapeHtml(conversation.id)}">
-      <strong>${escapeHtml(conversation.title || "新会话")}</strong>
-      <span>${escapeHtml(formatConversationTime(conversation.updatedAt))} · ${(conversation.messages || []).length} 条消息</span>
-    </button>
+    <div class="conversation-row ${conversation.id === state.activeConversationId ? "active" : ""}">
+      <button class="conversation-item" type="button" data-conversation-id="${escapeHtml(conversation.id)}">
+        <strong>${escapeHtml(conversation.title || "新会话")}</strong>
+        <span>${escapeHtml(formatConversationTime(conversation.updatedAt))} · ${(conversation.messages || []).length} 条消息</span>
+      </button>
+      <button class="conversation-delete" type="button" data-delete-conversation-id="${escapeHtml(conversation.id)}" aria-label="删除会话">删除</button>
+    </div>
   `).join("");
   container.querySelectorAll("[data-conversation-id]").forEach((button) => {
     button.addEventListener("click", () => restoreConversation(button.dataset.conversationId));
+  });
+  container.querySelectorAll("[data-delete-conversation-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteConversation(button.dataset.deleteConversationId);
+    });
   });
 }
 
@@ -496,9 +545,13 @@ function groupGraphItem(item) {
 async function performSearch(query) {
   const keyword = (query || "").trim();
   const output = $("#searchResults");
-  if (!keyword || !output) return;
+  if (!output) return;
+  if (!keyword) {
+    state.homeSearch = {grouped: null, keyword: "", page: 1};
+    renderSearchPlaceholder();
+    return;
+  }
   if ($("#homeSearchInput")) $("#homeSearchInput").value = keyword;
-  if ($("#globalSearchInput")) $("#globalSearchInput").value = keyword;
   output.innerHTML = '<div class="loading">正在检索知识图谱、实时事件和文档索引...</div>';
   const grouped = Object.fromEntries(SEARCH_GROUPS.map((name) => [name, []]));
 
@@ -548,7 +601,8 @@ async function performSearch(query) {
     }
   }
 
-  renderGroupedResults(grouped, keyword);
+  state.homeSearch = {grouped, keyword, page: 1};
+  renderGroupedResults(grouped, keyword, 1);
 }
 
 function runGlobalSearch(query) {
@@ -567,14 +621,89 @@ function eventMatchesKeyword(event, keyword) {
   return aliases.some((word) => text.toLowerCase().includes(word.toLowerCase()));
 }
 
-function renderGroupedResults(grouped, keyword) {
+function renderSearchPlaceholder() {
   const output = $("#searchResults");
+  if (!output) return;
+  output.innerHTML = '<div class="empty-state">请输入关键词，或点击上方热门关键词开始检索。</div>';
+}
+
+function flattenGroupedResults(grouped) {
+  return SEARCH_GROUPS.flatMap((groupName) => (grouped[groupName] || []).map((item) => ({...item, groupName})));
+}
+
+function regroupResults(items) {
+  const grouped = Object.fromEntries(SEARCH_GROUPS.map((name) => [name, []]));
+  items.forEach((item) => grouped[item.groupName]?.push(item));
+  return grouped;
+}
+
+function paginationItems(current, total) {
+  if (total <= 7) return Array.from({length: total}, (_, index) => index + 1);
+  const pages = [];
+  for (let page = 1; page <= total; page += 1) {
+    if (page === 1 || page === total || Math.abs(page - current) <= 1) {
+      pages.push(page);
+    } else if (pages[pages.length - 1] !== "...") {
+      pages.push("...");
+    }
+  }
+  return pages;
+}
+
+function renderSearchPagination(page, totalPages, totalItems) {
+  if (totalPages <= 1) {
+    return `<div class="search-result-meta">共 ${totalItems} 条结果</div>`;
+  }
+  const pages = paginationItems(page, totalPages).map((item) => {
+    if (item === "...") return '<span class="pagination-ellipsis">...</span>';
+    return `<button type="button" class="${item === page ? "active" : ""}" data-search-page="${item}">${item}</button>`;
+  }).join("");
+  return `
+    <div class="search-pagination" aria-label="检索结果分页">
+      <span>共 ${totalItems} 条结果，第 ${page} / ${totalPages} 页</span>
+      <button type="button" data-search-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>上一页</button>
+      ${pages}
+      <button type="button" data-search-page="${page + 1}" ${page >= totalPages ? "disabled" : ""}>下一页</button>
+    </div>
+  `;
+}
+
+function bindSearchResultActions(output) {
+  output.querySelectorAll("[data-node-id]").forEach((item) => {
+    item.addEventListener("click", () => {
+      showPage("graph");
+      loadNodeDetail(item.dataset.nodeId);
+    });
+  });
+  output.querySelectorAll("[data-search-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextPage = Number(button.dataset.searchPage || 1);
+      renderGroupedResults(state.homeSearch.grouped, state.homeSearch.keyword, nextPage);
+      output.scrollIntoView({behavior: "smooth", block: "start"});
+    });
+  });
+}
+
+function renderGroupedResults(grouped, keyword, requestedPage = 1) {
+  const output = $("#searchResults");
+  if (!output || !grouped) return;
+  const allItems = flattenGroupedResults(grouped);
+  if (!allItems.length) {
+    output.innerHTML = '<div class="empty-state">没有找到匹配结果，请换一个关键词。</div>';
+    return;
+  }
+  const totalPages = Math.max(1, Math.ceil(allItems.length / HOME_SEARCH_PAGE_SIZE));
+  const page = Math.min(Math.max(Number(requestedPage) || 1, 1), totalPages);
+  const pageItems = allItems.slice((page - 1) * HOME_SEARCH_PAGE_SIZE, page * HOME_SEARCH_PAGE_SIZE);
+  const visibleGrouped = regroupResults(pageItems);
+  state.homeSearch = {grouped, keyword, page};
   const sections = SEARCH_GROUPS.map((groupName) => {
-    const items = grouped[groupName] || [];
+    const items = visibleGrouped[groupName] || [];
     if (!items.length) return "";
+    const groupTotal = (grouped[groupName] || []).length;
     return `
       <section class="result-group">
-        <h3>${groupName}<span>${items.length}</span></h3>
+        <h3>${groupName}<span>${groupTotal}</span></h3>
         ${items.map((item) => `
           <article class="result-item" ${item.nodeId ? `data-node-id="${escapeHtml(item.nodeId)}"` : ""}>
             <div>
@@ -588,13 +717,8 @@ function renderGroupedResults(grouped, keyword) {
       </section>
     `;
   }).join("");
-  output.innerHTML = sections || '<div class="empty-state">没有找到匹配结果，请换一个关键词。</div>';
-  output.querySelectorAll("[data-node-id]").forEach((item) => {
-    item.addEventListener("click", () => {
-      showPage("graph");
-      loadNodeDetail(item.dataset.nodeId);
-    });
-  });
+  output.innerHTML = renderSearchPagination(page, totalPages, allItems.length) + sections;
+  bindSearchResultActions(output);
 }
 
 async function loadStandards() {
@@ -621,6 +745,15 @@ function fillStandardFilter() {
   select.value = current;
 }
 
+function standardPublisher(standard) {
+  const explicit = standard.publisher || standard.issuing_body || standard.issuer || standard.release_unit || standard.organization;
+  if (explicit) return explicit;
+  const code = standard.code || standard.standard_id || "";
+  if (code.startsWith("GB")) return "国家市场监督管理总局 / 国家标准化管理委员会";
+  if (code.startsWith("T/")) return "团体标准发布单位";
+  return "行业标准发布单位";
+}
+
 function renderStandards() {
   const container = $("#standardsList");
   if (!container) return;
@@ -629,14 +762,42 @@ function renderStandards() {
     const text = `${standard.code || ""} ${standard.name || ""} ${standard.title || ""}`;
     return !keyword || text.includes(keyword);
   });
-  container.innerHTML = items.map((standard) => `
-    <article class="standard-card">
-      <span class="type-tag">标准规范</span>
-      <h3>${escapeHtml(standard.name || standard.title || "未命名标准")}</h3>
-      <p>${escapeHtml(standard.code || standard.standard_id || "")}</p>
-      <button class="ghost" type="button" data-standard-code="${escapeHtml(standard.code || "")}">查看相关条款</button>
-    </article>
-  `).join("") || '<div class="empty-state">暂无标准数据。</div>';
+  if (!items.length) {
+    container.innerHTML = '<div class="empty-state">暂无标准数据。</div>';
+    return;
+  }
+  container.innerHTML = `
+    <div class="standards-table-wrap">
+      <table class="standards-table">
+        <thead>
+          <tr>
+            <th>文件名称</th>
+            <th>文件编号</th>
+            <th>发布单位</th>
+            <th>查看</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((standard) => {
+            const code = standard.code || standard.standard_id || "";
+            return `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(standard.name || standard.title || "未命名标准")}</strong>
+                  <span class="type-tag">标准规范</span>
+                </td>
+                <td>${escapeHtml(code || "暂无编号")}</td>
+                <td>${escapeHtml(standardPublisher(standard))}</td>
+                <td>
+                  <button class="ghost" type="button" data-standard-code="${escapeHtml(code)}">查看</button>
+                </td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
   container.querySelectorAll("[data-standard-code]").forEach((button) => {
     button.addEventListener("click", () => {
       showPage("graph");
@@ -1397,14 +1558,93 @@ async function loadEvents(options = {}) {
     params.set("lon", lon);
   }
   try {
-    const data = await api(`/api/disasters/events?${params.toString()}`);
-    state.events = data.events || [];
+    const [data, officialEvents] = await Promise.all([
+      api(`/api/disasters/events?${params.toString()}`),
+      loadOfficialEvents({source, days, type}),
+    ]);
+    state.events = [...(data.events || []), ...officialEvents];
     renderOverview();
     renderHomeEvents();
     if (!options.homeOnly) renderEvents();
   } catch (error) {
     if (!options.silent) toast(error.message);
   }
+}
+
+async function loadOfficialEvents({source, days, type}) {
+  if (source && !OFFICIAL_SOURCE_IDS.has(source)) return [];
+  const params = new URLSearchParams({active_only: "true", limit: "200"});
+  if (source) params.set("source_id", source);
+  const start = new Date(Date.now() - Number(days || 365) * 24 * 60 * 60 * 1000);
+  params.set("start_time", start.toISOString().slice(0, 19).replace("T", " "));
+  try {
+    const data = await api(`/api/disaster-events/latest?${params.toString()}`);
+    return (data.events || []).filter((event) => officialTypeMatches(event.disaster_type, type)).map(officialEventToRealtime);
+  } catch {
+    return [];
+  }
+}
+
+function officialTypeMatches(disasterType, selectedType) {
+  if (!selectedType) return true;
+  const type = disasterType || "";
+  if (selectedType === "Flood") return ["flood", "mountain_flood", "rainfall", "water_level", "reservoir"].includes(type);
+  if (selectedType === "Landslide") return ["landslide", "debris_flow", "collapse", "geological_disaster"].includes(type);
+  return selectedType.toLowerCase() === type.toLowerCase();
+}
+
+function officialEventToRealtime(event) {
+  return {
+    event_uid: `official::${event.source_id || "source"}::${event.content_hash || event.id}`,
+    event_id: String(event.id || event.content_hash || ""),
+    source: event.source_name || event.source_id || "官方采集",
+    source_id: event.source_id || "",
+    source_note: event.confidence || "official_news",
+    event_type: disasterTypeText(event.disaster_type),
+    event_type_group: event.disaster_type || "official",
+    title: event.title || "灾害信息",
+    place: event.address_text || event.county || event.city || event.province || "长沙周边",
+    time: event.published_at || event.updated_at || "",
+    latitude: event.lat,
+    longitude: event.lng,
+    risk: warningLevelText(event.warning_level),
+    risk_score: warningScore(event.warning_level),
+    color: warningColor(event.warning_level),
+    radius_m: 18000 + warningScore(event.warning_level) * 12000,
+    url: event.original_url || event.source_url || "",
+    summary: event.summary || "",
+  };
+}
+
+function disasterTypeText(type) {
+  return {
+    flood: "洪水",
+    mountain_flood: "山洪",
+    landslide: "滑坡",
+    debris_flow: "泥石流",
+    collapse: "崩塌",
+    geological_disaster: "地质灾害",
+    rainfall: "暴雨",
+    water_level: "水位",
+    reservoir: "水库",
+  }[type] || type || "灾害信息";
+}
+
+function warningLevelText(level) {
+  return {red: "红色预警", orange: "橙色预警", yellow: "黄色预警", blue: "蓝色预警"}[level] || level || "未知";
+}
+
+function warningScore(level) {
+  return {red: 4, orange: 3, yellow: 2, blue: 1}[level] || 0;
+}
+
+function warningColor(level) {
+  return {
+    red: [214, 39, 40, 190],
+    orange: [245, 124, 0, 180],
+    yellow: [250, 204, 21, 170],
+    blue: [37, 99, 235, 170],
+  }[level] || [15, 159, 143, 150];
 }
 
 function renderHomeEvents() {
@@ -1689,10 +1929,6 @@ function bindForms() {
     event.preventDefault();
     performSearch($("#homeSearchInput").value);
   });
-  $("#globalSearchForm")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    runGlobalSearch($("#globalSearchInput")?.value || "");
-  });
   $("#graphSearchForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     searchGraphNodes();
@@ -1732,7 +1968,8 @@ async function init() {
   initChatState();
   showPage((location.hash || "#home").slice(1));
   loadDashboard();
-  performSearch("滑坡");
+  if ($("#homeSearchInput")) $("#homeSearchInput").value = "";
+  renderSearchPlaceholder();
 }
 
 document.addEventListener("DOMContentLoaded", () => {

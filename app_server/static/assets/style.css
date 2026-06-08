@@ -449,7 +449,7 @@ mark {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: auto minmax(240px, 420px) 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
   min-height: 72px;
@@ -748,6 +748,28 @@ mark {
   gap: 10px;
 }
 
+#homeSearchForm,
+#standardSearchForm,
+#chatForm {
+  flex-direction: row;
+  align-items: stretch;
+}
+
+#homeSearchForm input,
+#standardSearchForm input,
+#chatForm textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#homeSearchForm button,
+#standardSearchForm button,
+#chatForm button {
+  flex: 0 0 auto;
+  min-width: 72px;
+  white-space: nowrap;
+}
+
 .search-bar.compact {
   margin-top: 14px;
   align-items: stretch;
@@ -766,7 +788,7 @@ mark {
 }
 
 .inline-search {
-  width: min(420px, 100%);
+  width: min(520px, 100%);
 }
 
 .keyword-row,
@@ -790,6 +812,13 @@ mark {
   gap: 8px;
 }
 
+.conversation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+}
+
 .conversation-item {
   display: grid;
   gap: 4px;
@@ -802,9 +831,19 @@ mark {
   border-radius: 8px;
 }
 
-.conversation-item.active {
+.conversation-row.active .conversation-item {
   border-color: var(--teal);
   background: var(--teal-soft);
+}
+
+.conversation-delete {
+  min-width: 52px;
+  border: 1px solid #f0c7b6;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .conversation-item strong {
@@ -821,7 +860,6 @@ mark {
 
 .grouped-results,
 .event-list,
-.standards-list,
 .node-list,
 .source-list,
 .question-list,
@@ -949,6 +987,46 @@ mark {
   background: #fff;
   color: var(--blue-strong);
   font-weight: 700;
+}
+
+.search-result-meta,
+.search-pagination {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.search-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-pagination button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--blue-strong);
+  font-weight: 800;
+}
+
+.search-pagination button.active {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #fff;
+}
+
+.search-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.pagination-ellipsis {
+  padding: 0 4px;
 }
 
 .composer {
@@ -1488,15 +1566,57 @@ mark {
 }
 
 .standards-list {
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  display: block;
 }
 
-.standard-card {
-  padding: 18px;
+.standards-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
 }
 
-.standard-card p {
+.standards-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+}
+
+.standards-table th,
+.standards-table td {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.standards-table th {
+  background: #f1f7fb;
+  color: #344963;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.standards-table tbody tr:hover {
+  background: #f7fbfd;
+}
+
+.standards-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.standards-table td strong {
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.standards-table td {
   color: var(--muted);
+}
+
+.standards-table td:first-child {
+  color: var(--text);
 }
 
 .map-placeholder {
@@ -1508,6 +1628,17 @@ mark {
   color: #24566a;
   font-weight: 700;
   overflow: hidden;
+}
+
+.map-placeholder.is-leaflet {
+  min-height: 360px;
+  border-style: solid;
+  background: #fff;
+}
+
+.leaflet-map {
+  width: 100%;
+  min-height: 360px;
 }
 
 .map-card {
@@ -1677,7 +1808,7 @@ mark {
 
 @media (max-width: 1180px) {
   .app-header {
-    grid-template-columns: auto auto minmax(180px, 1fr) auto;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
   }
 
   .nav-toggle {
@@ -1784,18 +1915,9 @@ mark {
     grid-row: 1;
   }
 
-  .global-search {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-
-  .global-search button {
-    padding: 0 12px;
-  }
-
   .user-box {
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 2;
     justify-content: flex-start;
     min-width: 0;
   }
@@ -1828,6 +1950,19 @@ mark {
   .section-title {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  #homeSearchForm,
+  #standardSearchForm,
+  #chatForm {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  #homeSearchForm button,
+  #standardSearchForm button,
+  #chatForm button {
+    min-width: 68px;
   }
 
   .message {

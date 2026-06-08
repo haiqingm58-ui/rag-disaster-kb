@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>地质灾害知识图谱与智能问答系统</title>
-  <link rel="stylesheet" href="/static/assets/style.css?v=quick-use-1">
+  <link rel="stylesheet" href="/static/assets/style.css?v=standards-table-1">
 </head>
 <body class="app-page">
   <header class="app-header">
@@ -16,10 +16,6 @@
       </span>
     </a>
     <button id="navToggle" class="nav-toggle" type="button" aria-label="展开导航">☰</button>
-    <form id="globalSearchForm" class="global-search" role="search" aria-label="全站搜索">
-      <input id="globalSearchInput" type="search" placeholder="搜索标准、知识点、事件">
-      <button type="submit">搜索</button>
-    </form>
     <nav id="topNav" class="top-nav" aria-label="主导航">
       <button data-page="home" class="active">首页</button>
       <button data-page="chat">智能问答</button>
@@ -213,7 +209,11 @@
           <select id="eventTypeFilter">
             <option value="">全部类型</option>
             <option value="Flood">洪水 / 暴雨</option>
+            <option value="mountain_flood">山洪</option>
             <option value="Landslide">山地滑坡</option>
+            <option value="debris_flow">泥石流</option>
+            <option value="geological_disaster">地质灾害</option>
+            <option value="water_level">水位 / 雨量</option>
             <option value="Earthquake">地震</option>
           </select>
           <select id="eventDaysFilter">
@@ -237,6 +237,11 @@
             <option value="GDACS">GDACS</option>
             <option value="CENC">CENC</option>
             <option value="Firecrawl">Firecrawl</option>
+            <option value="hunan_natural_resource">湖南自然资源厅</option>
+            <option value="cma_warning">中央气象台预警</option>
+            <option value="hunan_water">湖南省水利厅</option>
+            <option value="changsha_water">长沙市水利局</option>
+            <option value="changsha_natural_resource">长沙自然资源规划局</option>
           </select>
         </div>
         <div class="map-placeholder" id="eventMap"></div>
@@ -260,7 +265,7 @@
   </main>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="/static/assets/map.js?v=dashboard-6"></script>
-  <script src="/static/assets/app.js?v=dashboard-14"></script>
+  <script src="/static/assets/map.js?v=official-map-1"></script>
+  <script src="/static/assets/app.js?v=standards-table-1"></script>
 </body>
 </html>

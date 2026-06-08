@@ -11,7 +11,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app_server.api import auth, chat, diagnostics, disasters, documents, graph, health, user_data
+from app_server.api import (
+    auth,
+    chat,
+    crawler_admin,
+    diagnostics,
+    disaster_events,
+    disaster_sources,
+    disasters,
+    documents,
+    graph,
+    health,
+    user_data,
+)
 from app_server.logging_config import setup_logging
 from app_server.security import AUTH_COOKIE_NAME, decode_access_token
 from app_server.services.disaster_scheduler import disaster_scheduler
@@ -111,6 +123,9 @@ def create_app() -> FastAPI:
     app.include_router(documents.router, prefix="/api")
     app.include_router(graph.router, prefix="/api")
     app.include_router(disasters.router, prefix="/api")
+    app.include_router(disaster_events.router, prefix="/api")
+    app.include_router(disaster_sources.router, prefix="/api")
+    app.include_router(crawler_admin.router, prefix="/api")
     app.include_router(user_data.router, prefix="/api")
 
     app.mount("/static", StaticFiles(directory="app_server/static"), name="static")

@@ -300,3 +300,42 @@ DeepSeek API 模式下的数据边界：
 - 增加更多中文灾害应急专业文档，提升 RAG 覆盖面。
 - 接入更多权威数据源，并增强实时数据异常恢复能力。
 - 增加 CI 检查，例如 Python 编译检查、JSON 校验和轻量评测。
+
+## 长沙权威灾害采集
+
+新增的长沙中心采集模块用于采集公开发布的洪水、山洪、滑坡、泥石流、地质灾害气象风险预警、水情雨情等信息。数据源配置在 `configs/disaster_sources.yaml`，采集结果保存到 `data/disaster_events.sqlite3`，不会替换原有 CENC / USGS / GDACS / Firecrawl 实时事件链路。
+
+手动运行：
+
+```bash
+python -m app.crawlers.scheduler --once
+python -m app.crawlers.scheduler --source hunan_natural_resource
+python -m app.crawlers.scheduler --all
+```
+
+新增接口：
+
+```text
+GET  /api/disaster-events/latest
+GET  /api/disaster-events/geojson
+GET  /api/disaster-sources
+POST /api/crawler/run?source_id=hunan_natural_resource
+```
+
+`POST /api/crawler/run` 需要管理员 JWT。前端灾害事件页会合并展示官方采集事件，并在有坐标时尝试加载 Leaflet 地图；Leaflet 加载失败时自动回退到坐标占位卡片。
+
+服务器定时任务示例：
+
+```cron
+*/30 * * * * cd /opt/rag-disaster-kb && /opt/rag-disaster-kb/venv/bin/python -m app.crawlers.scheduler --once >> logs/official_crawler.log 2>&1
+```
+
+当前 enabled=true 的 MVP 数据源：
+
+- 湖南省自然资源厅地质灾害预警
+- 中央气象台灾害预警
+- 湖南省水利厅
+- 长沙市水利局
+- 长沙市自然资源和规划局
+
+其余全国、湖南和长沙扩展源已在配置文件中预留为 `enabled=false`。所有采集只访问公开网页、公开 JSON 或公开 PDF，不绕过登录、验证码或非公开接口。当前 MVP parser 采用通用公告页解析，若某个网站栏目结构变化或 robots.txt 不允许访问，会记录错误并继续处理其他数据源；后续可在 `app/crawlers/parsers/` 下针对单个源增强解析规则。
