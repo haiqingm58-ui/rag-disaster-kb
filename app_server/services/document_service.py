@@ -8,40 +8,28 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
-from app_server.settings import settings
 from config import COLLECTION_DOCS, UPLOADS_DIR
+from app_server.services.document_converter import (
+    SUPPORTED_SUFFIX_LABEL,
+    convert_to_markdown,
+    safe_upload_filename,
+    validate_upload_metadata,
+)
 from src.ingestion.document_loader import load_and_chunk_with_report
 from src.vectorstore.chroma_store import add_documents, delete_by_source, embedding_config_status, list_sources, source_chunk_count
 
 
-ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
-ALLOWED_MIME_TYPES = {
-    ".pdf": {"application/pdf"},
-    ".txt": {"text/plain", "application/octet-stream"},
-    ".md": {"text/markdown", "text/plain", "application/octet-stream"},
-}
 logger = logging.getLogger(__name__)
 
 
 def _safe_filename(name: str) -> str:
-    return Path(name).name.replace("/", "_").replace("\\", "_")
+    return safe_upload_filename(name)
 
 
 async def save_and_ingest(file: UploadFile) -> dict:
     start = time.perf_counter()
     filename = _safe_filename(file.filename or "upload.txt")
-    suffix = Path(filename).suffix.lower()
-    if suffix not in ALLOWED_SUFFIXES:
-        raise ValueError("仅支持 PDF、TXT、MD 文件")
-    content_type = (file.content_type or "").split(";", 1)[0].strip().lower()
-    if content_type and content_type not in ALLOWED_MIME_TYPES[suffix]:
-        raise ValueError(f"文件类型不匹配：{suffix} 不支持 {content_type}")
-
-    file.file.seek(0, 2)
-    size = file.file.tell()
-    file.file.seek(0)
-    if size > settings.max_upload_bytes:
-        raise ValueError(f"文件过大，最大允许 {settings.max_upload_mb}MB")
+    validate_upload_metadata(file, filename)
 
     document_id = uuid.uuid4().hex
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -49,9 +37,12 @@ async def save_and_ingest(file: UploadFile) -> dict:
     with target.open("wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    chunks, report = load_and_chunk_with_report(str(target))
+    conversion = convert_to_markdown(target, filename=filename, document_id=document_id)
+    chunks, report = load_and_chunk_with_report(str(conversion.markdown_path))
+    report.update(conversion.report)
     for chunk in chunks:
         chunk.metadata["source"] = str(target)
+        chunk.metadata["markdown_path"] = str(conversion.markdown_path)
         chunk.metadata["filename"] = filename
         chunk.metadata["document_id"] = document_id
     chroma_written = False
@@ -67,6 +58,7 @@ async def save_and_ingest(file: UploadFile) -> dict:
         "filename": filename,
         "document_id": document_id,
         "saved_path": str(target),
+        "markdown_path": str(conversion.markdown_path),
         "chunk_count": len(chunks),
         "chroma_written": chroma_written,
         "latency_ms": round((time.perf_counter() - start) * 1000),
@@ -98,3 +90,7 @@ def rebuild_document_index() -> dict:
         "documents": len(documents),
         "chunks": sum(item.get("chunks", 0) for item in documents),
     }
+
+
+def supported_upload_label() -> str:
+    return SUPPORTED_SUFFIX_LABEL

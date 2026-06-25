@@ -10,11 +10,12 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
     use_graph: bool = True
     use_realtime: bool = True
+    use_web: bool = True
     top_k: int = Field(default=5, ge=1, le=20)
 
 
 class SourceItem(BaseModel):
-    type: Literal["document", "graph", "realtime", "general"]
+    type: Literal["document", "graph", "realtime", "web", "general"]
     title: str
     content: str
     score: float | None = None
@@ -22,6 +23,7 @@ class SourceItem(BaseModel):
     standard: str | None = None
     clause: str | None = None
     snippet: str | None = None
+    url: str | None = None
 
 
 class ChatResponse(BaseModel):

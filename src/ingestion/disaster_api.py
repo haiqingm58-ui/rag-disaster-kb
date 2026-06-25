@@ -1,5 +1,6 @@
 import json
 import math
+import re
 import time
 import hashlib
 from datetime import datetime
@@ -15,6 +16,8 @@ from config import (
     CACHE_TTL_EARTHQUAKE,
     CACHE_TTL_GDACS,
     CENC_API_URL,
+    FIRECRAWL_CACHE_TTL_SECONDS,
+    FIRECRAWL_SEARCH_LIMIT,
     USGS_API_URL,
     GDACS_API_URL,
 )
@@ -24,7 +27,30 @@ SOURCE_NOTES = {
     "CENC": "CENC records via Wolfx mirror",
     "USGS": "USGS Earthquake Hazards Program",
     "GDACS": "Global Disaster Alert and Coordination System",
+    "Firecrawl": "Firecrawl web search and scrape results",
 }
+
+FIRECRAWL_DISASTER_QUERIES = (
+    "最新 洪水 暴雨 灾害 预警",
+    "最新 山体滑坡 泥石流 崩塌 灾害",
+    "site:mnr.gov.cn 地质灾害 滑坡 泥石流 预警",
+    "site:mem.gov.cn 自然灾害 洪水 滑坡 最新",
+)
+FIRECRAWL_FOCUS_TERMS = (
+    "洪水",
+    "山洪",
+    "内涝",
+    "暴雨",
+    "flood",
+    "flash flood",
+    "滑坡",
+    "山体滑坡",
+    "崩塌",
+    "泥石流",
+    "landslide",
+    "mudslide",
+    "debris flow",
+)
 
 
 def _is_cache_fresh(path: Path, ttl: int) -> bool:
@@ -193,7 +219,7 @@ def _event_type_name(code: str) -> str:
 
 
 def _event_type_group(event_type: str) -> str:
-    allowed = {"Earthquake", "Flood", "Tropical Cyclone", "Volcano", "Drought", "Wildfire"}
+    allowed = {"Earthquake", "Flood", "Landslide", "Tropical Cyclone", "Volcano", "Drought", "Wildfire"}
     return event_type if event_type in allowed else "Other"
 
 
@@ -348,6 +374,183 @@ def _load_gdacs_events(force_refresh: bool = False) -> tuple[List[dict], dict]:
     return events, status
 
 
+def _text_has_focus_disaster(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(term.lower() in lowered for term in FIRECRAWL_FOCUS_TERMS)
+
+
+def _infer_web_event_type(text: str) -> str:
+    lowered = (text or "").lower()
+    if any(term in lowered for term in ("滑坡", "山体滑坡", "崩塌", "泥石流", "landslide", "mudslide", "debris flow")):
+        return "Landslide"
+    if any(term in lowered for term in ("洪水", "山洪", "内涝", "暴雨", "flood", "flash flood")):
+        return "Flood"
+    return "Other"
+
+
+def _infer_web_risk(text: str) -> tuple[str, int, list[int]]:
+    lowered = (text or "").lower()
+    if any(term in lowered for term in ("红色预警", "重大", "严重", "死亡", "失联", "critical", "severe", "fatal")):
+        return "High", 3, [245, 124, 0, 180]
+    if any(term in lowered for term in ("橙色预警", "预警", "转移", "受灾", "warning", "alert")):
+        return "Moderate", 2, [250, 204, 21, 170]
+    return "Low", 1, [46, 160, 67, 150]
+
+
+def _infer_web_time(text: str, fetched_ts: float) -> tuple[str, float]:
+    match = re.search(r"(20\d{2})[年\-/.](\d{1,2})[月\-/.](\d{1,2})", text or "")
+    if match:
+        year, month, day = [int(part) for part in match.groups()]
+        try:
+            parsed = datetime(year, month, day)
+            return parsed.strftime("%Y-%m-%d 00:00:00"), parsed.timestamp()
+        except ValueError:
+            pass
+    compact = re.search(r"(20\d{2})(\d{2})(\d{2})", text or "")
+    if compact:
+        year, month, day = [int(part) for part in compact.groups()]
+        try:
+            parsed = datetime(year, month, day)
+            return parsed.strftime("%Y-%m-%d 00:00:00"), parsed.timestamp()
+        except ValueError:
+            pass
+    year_match = re.search(r"(20\d{2})年", text or "")
+    month_day_match = re.search(r"(\d{1,2})月(\d{1,2})日", text or "")
+    if year_match and month_day_match:
+        year = int(year_match.group(1))
+        month, day = [int(part) for part in month_day_match.groups()]
+        try:
+            parsed = datetime(year, month, day)
+            return parsed.strftime("%Y-%m-%d 00:00:00"), parsed.timestamp()
+        except ValueError:
+            pass
+    return _format_ts(fetched_ts), fetched_ts
+
+
+def _infer_web_place(text: str) -> str:
+    # Heuristic only: Firecrawl results are used as open web clues. Keep this
+    # conservative and show "网络来源" when no stable place can be inferred.
+    match = re.search(r"([\u4e00-\u9fff]{2,12}(?:省|市|县|区|镇|乡|村))", text or "")
+    return match.group(1) if match else "网络来源"
+
+
+def _web_result_to_event(item: dict, fetched_ts: float) -> dict | None:
+    title = item.get("title") or "联网灾害信息"
+    snippet = item.get("snippet") or ""
+    markdown = item.get("markdown") or ""
+    url = item.get("url") or ""
+    text = f"{title} {snippet} {url} {markdown[:1200]}"
+    if not _text_has_focus_disaster(text):
+        return None
+
+    event_type = _infer_web_event_type(text)
+    event_time, event_ts = _infer_web_time(text, fetched_ts)
+    risk, risk_score, color = _infer_web_risk(text)
+    event_uid = _stable_event_uid("Firecrawl", url, title, event_time)
+    return {
+        "event_uid": event_uid,
+        "event_id": url,
+        "source": "Firecrawl",
+        "source_note": SOURCE_NOTES["Firecrawl"],
+        "event_type": event_type,
+        "event_type_group": _event_type_group(event_type),
+        "title": title,
+        "place": _infer_web_place(text),
+        "time": event_time,
+        "time_ts": event_ts,
+        "magnitude": None,
+        "depth_km": None,
+        "latitude": None,
+        "longitude": None,
+        "risk": risk,
+        "risk_score": risk_score,
+        "color": color,
+        "radius_m": 30000 + risk_score * 20000,
+        "url": url,
+        "snippet": snippet or markdown[:220],
+    }
+
+
+def _load_firecrawl_events(force_refresh: bool = False) -> tuple[List[dict], dict]:
+    cache_file = CACHE_DIR / "firecrawl_disasters.json"
+    status = _status_template("Firecrawl", cache_file, FIRECRAWL_CACHE_TTL_SECONDS)
+    status["configured"] = False
+
+    try:
+        from app_server.services.firecrawl_service import FirecrawlError, firecrawl_configured, search_firecrawl
+    except Exception as exc:
+        status["error"] = f"Firecrawl 服务不可用：{exc}"
+        return [], status
+
+    status["configured"] = firecrawl_configured()
+    if not status["configured"]:
+        status["error"] = "FIRECRAWL_API_KEY 未配置，已跳过 Firecrawl 联网爬取。"
+        return [], status
+
+    if not force_refresh and status["cache_fresh"]:
+        cached = _read_cache(cache_file)
+        if isinstance(cached, dict):
+            events = cached.get("events") or []
+            status.update({
+                "success": True,
+                "used_cache": True,
+                "record_count": len(events),
+                "updated_at": status["cache_time"],
+            })
+            return events, status
+
+    fetched_ts = time.time()
+    events: list[dict] = []
+    errors: list[str] = []
+    seen: set[str] = set()
+    for query in FIRECRAWL_DISASTER_QUERIES:
+        try:
+            results = search_firecrawl(query, limit=FIRECRAWL_SEARCH_LIMIT, scrape=False)
+        except FirecrawlError as exc:
+            errors.append(str(exc))
+            continue
+        for result in results:
+            event = _web_result_to_event(result, fetched_ts)
+            if not event or event["event_uid"] in seen:
+                continue
+            seen.add(event["event_uid"])
+            events.append(event)
+
+    if events:
+        payload = {"events": events, "queries": list(FIRECRAWL_DISASTER_QUERIES), "fetched_at": _format_ts(fetched_ts)}
+        _write_cache(cache_file, payload)
+        status.update(_cache_info(cache_file, FIRECRAWL_CACHE_TTL_SECONDS))
+        status.update({
+            "success": True,
+            "request_success": True,
+            "used_cache": False,
+            "record_count": len(events),
+            "updated_at": status["cache_time"],
+        })
+        if errors:
+            status["error"] = "；".join(errors[:2])
+        return events, status
+
+    cached = _read_cache(cache_file)
+    if isinstance(cached, dict) and cached.get("events"):
+        events = cached["events"]
+        status.update({
+            "success": True,
+            "request_success": False,
+            "used_cache": True,
+            "record_count": len(events),
+            "updated_at": status["cache_time"],
+            "error": "；".join(errors) or "Firecrawl 未返回可用灾害事件，使用缓存。",
+        })
+        return events, status
+
+    status.update({
+        "request_success": False,
+        "error": "；".join(errors) or "Firecrawl 未返回可用灾害事件。",
+    })
+    return [], status
+
+
 def fetch_gdacs_events(force_refresh: bool = False) -> List[dict]:
     """
     Fetch active disaster events from GDACS.
@@ -495,6 +698,7 @@ def get_current_hazard_events(
     include_cenc: bool = True,
     include_usgs: bool = True,
     include_gdacs: bool = True,
+    include_firecrawl: bool = True,
     force_refresh: bool = False,
 ) -> List[dict]:
     """Return normalized live hazard events for the interactive map."""
@@ -601,6 +805,13 @@ def get_current_hazard_events(
         except Exception as e:
             print(f"地图获取 GDACS 数据失败: {e}")
 
+    if include_firecrawl:
+        try:
+            firecrawl_events, _ = _load_firecrawl_events(force_refresh=force_refresh)
+            events.extend(firecrawl_events)
+        except Exception as e:
+            print(f"地图获取 Firecrawl 数据失败: {e}")
+
     return events
 
 
@@ -608,6 +819,7 @@ def load_events_with_cache(
     include_cenc: bool = True,
     include_usgs: bool = True,
     include_gdacs: bool = True,
+    include_firecrawl: bool = True,
     force_refresh: bool = False,
 ) -> tuple[List[dict], dict]:
     """Load normalized map events and per-source cache/request status."""
@@ -709,6 +921,10 @@ def load_events_with_cache(
                 "url": ev.get("report_url", ""),
             })
 
+    if include_firecrawl:
+        firecrawl_events, statuses["Firecrawl"] = _load_firecrawl_events(force_refresh=force_refresh)
+        events.extend(firecrawl_events)
+
     return events, statuses
 
 
@@ -791,15 +1007,27 @@ def sync_current_events(
     include_cenc: bool = True,
     include_usgs: bool = True,
     include_gdacs: bool = True,
+    include_firecrawl: bool = True,
     force_refresh: bool = False,
 ) -> dict:
     events, statuses = load_events_with_cache(
         include_cenc=include_cenc,
         include_usgs=include_usgs,
         include_gdacs=include_gdacs,
+        include_firecrawl=include_firecrawl,
         force_refresh=force_refresh,
     )
-    result = sync_events_to_vectorstore(events)
+    try:
+        result = sync_events_to_vectorstore(events)
+    except Exception as exc:
+        result = {
+            "total_events": len(events),
+            "new_events": 0,
+            "skipped_duplicates": 0,
+            "last_sync_time": _format_ts(time.time()),
+            "vectorstore_error": str(exc),
+        }
+        _write_cache(CACHE_DIR / "event_sync_status.json", result)
     result["statuses"] = statuses
     return result
 

@@ -23,5 +23,6 @@ def chat(payload: ChatRequest, request: Request) -> dict:
         session_id=payload.session_id,
         use_graph=payload.use_graph,
         use_realtime=payload.use_realtime,
+        use_web=payload.use_web,
         top_k=payload.top_k,
     )

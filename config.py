@@ -141,6 +141,14 @@ GEOCODER_USER_AGENT = os.getenv(
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 SOCIAL_SIGNALS_CACHE_FILE = CACHE_DIR / "social_signals.json"
 
+# Firecrawl web crawler/search adapter. The crawler is optional: without an API
+# key, the app keeps using the structured official feeds only.
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")
+FIRECRAWL_BASE_URL = os.getenv("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev")
+FIRECRAWL_TIMEOUT_SECONDS = int(os.getenv("FIRECRAWL_TIMEOUT_SECONDS", "20"))
+FIRECRAWL_SEARCH_LIMIT = int(os.getenv("FIRECRAWL_SEARCH_LIMIT", "4"))
+FIRECRAWL_CACHE_TTL_SECONDS = int(os.getenv("FIRECRAWL_CACHE_TTL_SECONDS", "1800"))
+
 # Event deduplication and confidence scoring
 EVENT_DEDUP_TIME_WINDOW_MINUTES = int(os.getenv("EVENT_DEDUP_TIME_WINDOW_MINUTES", "30"))
 EVENT_DEDUP_DISTANCE_KM = float(os.getenv("EVENT_DEDUP_DISTANCE_KM", "50"))
