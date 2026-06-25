@@ -21,10 +21,12 @@ git push
 在阿里云控制台安全组放行：
 
 - `22/tcp`：SSH 登录
-- `80/tcp`：Web 访问
-- `8000/tcp`：仅调试时临时开放，正式环境不建议长期开放
+- `80/tcp`：HTTP，certbot 验证证书也需要
+- `443/tcp`：HTTPS，正式对外访问入口
 
-正式访问通过 Nginx 的 80 端口反向代理到 `127.0.0.1:8000`。
+不要长期放行 `8000/tcp`。FastAPI 监听 `127.0.0.1:8000`，外部访问统一走 Nginx。
+
+域名 `georisklab.com.cn` 的 A 记录请提前指向阿里云公网 IP，否则后面 certbot 校验会失败。
 
 ## 2. 登录服务器
 
@@ -153,31 +155,64 @@ sudo systemctl status rag-fastapi
 - `EnvironmentFile=/opt/rag-disaster-kb/.env`
 - `Restart=always`
 
-## 10. 配置 Nginx
+## 10. 配置 Nginx（HTTP）
+
+先用 HTTP 跑通整条链路。HTTPS 在下一节用 certbot 一键完成。
 
 ```bash
 sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/rag-fastapi
-sudo nano /etc/nginx/sites-available/rag-fastapi
 sudo ln -sf /etc/nginx/sites-available/rag-fastapi /etc/nginx/sites-enabled/rag-fastapi
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-把配置中的：
+`deploy/nginx.conf.example` 已经写好 `server_name georisklab.com.cn` 以及：
 
-```nginx
-server_name example.com;
-```
-
-改为你的域名或公网 IP。
+- gzip 压缩
+- 安全响应头（X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Permissions-Policy）
+- `/static/` 7 天缓存
+- `/api/chat` SSE 流式接口关闭代理缓冲、超时 600s
+- 全站限流 `5r/s`，突发 20
 
 浏览器访问：
 
 ```text
-http://你的域名或IP/
+http://georisklab.com.cn/
 ```
 
-## 11. 查看日志
+## 11. 启用 HTTPS（Let's Encrypt）
+
+确认 80 端口能从公网访问到本机（DNS 已生效、安全组已放行 80/443），然后：
+
+```bash
+cd /opt/rag-disaster-kb
+EMAIL=you@example.com bash deploy/setup_https.sh
+```
+
+脚本会：
+
+- 安装 `certbot` + `python3-certbot-nginx`
+- 用 nginx 插件给 `georisklab.com.cn` 申请证书
+- 注册 `certbot.timer` 自动续期
+
+证书申请成功后，把已经写好 HTTPS / HSTS / 跳转的完整配置覆盖上去：
+
+```bash
+sudo cp deploy/nginx-https.conf.example /etc/nginx/sites-available/rag-fastapi
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+浏览器访问：
+
+```text
+https://georisklab.com.cn/
+```
+
+确认证书有效后，回到 `.env` 把 `CORS_ORIGINS` 改成 `https://georisklab.com.cn`，并 `sudo systemctl restart rag-fastapi`。
+
+## 12. 查看日志
 
 ```bash
 journalctl -u rag-fastapi -f
@@ -191,7 +226,7 @@ curl http://127.0.0.1:8000/api/health
 curl http://127.0.0.1:8000/api/diagnostics
 ```
 
-## 12. 更新代码
+## 13. 更新代码
 
 ```bash
 cd /opt/rag-disaster-kb
@@ -209,7 +244,24 @@ sudo systemctl status rag-fastapi
 bash deploy/update_server.sh
 ```
 
-## 13. 备份数据
+## 备选：Docker 部署（可选，不推荐 2C2G）
+
+默认推荐 systemd，省内存又好排查。如果你换了更大机器或要做多节点，可以用 [deploy/Dockerfile](Dockerfile)：
+
+```bash
+docker build -t rag-disaster-kb -f deploy/Dockerfile .
+docker run -d --name rag-disaster-kb \
+  --env-file .env \
+  -p 127.0.0.1:8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  --restart unless-stopped \
+  rag-disaster-kb
+```
+
+Nginx 配置不需要改，仍指向 `127.0.0.1:8000`。Docker 容器内置 healthcheck，挂载本机 `data/` 和 `logs/` 保留数据。
+
+## 14. 备份数据
 
 ```bash
 cd /opt/rag-disaster-kb
@@ -218,7 +270,7 @@ tar -czvf rag-data-backup-$(date +%F).tar.gz data logs
 
 建议定期把备份下载到本地或上传对象存储。`.env` 含密钥，若备份 `.env`，务必妥善保存。
 
-## 14. 常见问题
+## 15. 常见问题
 
 ### 502 Bad Gateway
 
