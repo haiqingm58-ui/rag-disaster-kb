@@ -7,16 +7,19 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app_server.api import auth, chat, diagnostics, disasters, documents, graph, health
 from app_server.logging_config import setup_logging
-from app_server.settings import settings
+from app_server.settings import assert_production_safety, settings
 
 
 setup_logging()
 logger = logging.getLogger(__name__)
+
+assert_production_safety()
 
 
 def create_app() -> FastAPI:
@@ -35,6 +38,23 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    trusted_hosts = settings.trusted_hosts
+    if settings.is_production and trusted_hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+
+    @app.middleware("http")
+    async def security_headers_middleware(request: Request, call_next):
+        response = await call_next(request)
+        # Defense-in-depth; nginx adds the same headers when running behind it.
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        if settings.is_production:
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return response
 
     @app.middleware("http")
     async def request_logging_middleware(request: Request, call_next):
