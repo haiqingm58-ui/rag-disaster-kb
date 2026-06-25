@@ -1,0 +1,35 @@
+.git
+.github
+.gitignore
+.venv
+venv
+__pycache__
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# 本地敏感与运行产物
+.env
+.env.*
+!.env.example
+!.env.production.example
+models
+logs
+data/cache
+data/uploads
+data/chroma_db
+exports
+
+# 文档 / IDE / OS
+docs
+.idea
+.vscode
+.DS_Store
+
+# 不需要进镜像的本地辅助
+.pytest_cache
+.mypy_cache
+tests
+deploy
+README.md

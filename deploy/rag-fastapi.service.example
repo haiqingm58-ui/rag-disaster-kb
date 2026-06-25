@@ -1,6 +1,7 @@
 [Unit]
 Description=Geological Disaster RAG FastAPI
 After=network.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -8,11 +9,35 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/rag-disaster-kb
 EnvironmentFile=/opt/rag-disaster-kb/.env
-ExecStart=/opt/rag-disaster-kb/venv/bin/uvicorn app_server.main:app --host 127.0.0.1 --port 8000 --workers 1
+ExecStart=/opt/rag-disaster-kb/venv/bin/uvicorn app_server.main:app \
+    --host 127.0.0.1 --port 8000 --workers 1 \
+    --loop uvloop --http httptools --timeout-keep-alive 30 \
+    --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=always
 RestartSec=5
 KillSignal=SIGINT
 TimeoutStopSec=30
+
+# 2C2G 资源上限：给 nginx 和系统留余量，避免单进程吃光内存触发整机 OOM。
+MemoryMax=1200M
+MemoryHigh=1000M
+CPUQuota=180%
+LimitNOFILE=4096
+OOMScoreAdjust=200
+
+# Sandbox：限制 systemd 单元能访问的文件系统范围。
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+# 应用需要写入数据目录、日志、Chroma 持久化目录。
+ReadWritePaths=/opt/rag-disaster-kb/data /opt/rag-disaster-kb/logs
 
 [Install]
 WantedBy=multi-user.target

@@ -1,24 +1,35 @@
-# 80 端口配置：未配置 HTTPS 时直接对外服务；
-# 配置 HTTPS（参见 nginx-https.conf.example）后，本文件应改为把 80 全部 301 跳转到 443。
+# HTTPS 配置：跑完 deploy/setup_https.sh 拿到证书后，把本文件覆盖到
+# /etc/nginx/sites-available/rag-fastapi，重载 nginx 即可。
 
-# 上传与流式接口限流：每个客户端每秒最多 5 次请求，突发 20。
 limit_req_zone $binary_remote_addr zone=rag_api:10m rate=5r/s;
 
+# 80 → 443 强制跳转。
 server {
     listen 80;
     server_name georisklab.com.cn;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name georisklab.com.cn;
+
+    ssl_certificate     /etc/letsencrypt/live/georisklab.com.cn/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/georisklab.com.cn/privkey.pem;
+
+    # certbot 自动生成的 TLS 推荐配置（如缺失可手动拷贝默认值）。
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     client_max_body_size 30m;
     client_body_timeout 60s;
     client_header_timeout 20s;
 
-    # 上游 FastAPI 默认超时；问答接口使用 SSE 流式生成，单独再放宽。
     proxy_connect_timeout 10s;
     proxy_send_timeout 120s;
     proxy_read_timeout 120s;
     send_timeout 120s;
 
-    # 压缩：FastAPI JSON / HTML / JS / CSS 都受益。
     gzip on;
     gzip_vary on;
     gzip_min_length 1024;
@@ -34,13 +45,12 @@ server {
         application/xml
         image/svg+xml;
 
-    # 安全响应头。HSTS 在切到 HTTPS 后再开。
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(self), camera=(), microphone=()" always;
 
-    # 静态资源缓存。
     location /static/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
@@ -52,7 +62,6 @@ server {
         add_header Cache-Control "public, max-age=604800";
     }
 
-    # 问答接口走 SSE / 长连接，需要关闭代理缓冲并放宽读超时。
     location /api/chat {
         limit_req zone=rag_api burst=10 nodelay;
         proxy_pass http://127.0.0.1:8000;
