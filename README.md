@@ -188,6 +188,12 @@ http://localhost:8000
 - `GET /api/graph/summary`
 - `GET /api/graph/search?q=滑坡`
 - `GET /api/disasters/events`
+- `GET /api/disaster-sources`
+- `GET /api/disaster-events/latest`
+- `GET /api/disaster-events/geojson`
+- `POST /api/crawler/run?source_id=changsha_natural_resource`
+- `POST /api/crawler/run-all`
+- `GET /api/crawler/stats`
 - `POST /api/documents/upload`
 - `GET /api/documents`
 

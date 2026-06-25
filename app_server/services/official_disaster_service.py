@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.crawlers.dedupe import DisasterEventStore
-from app.crawlers.scheduler import run_source, source_status
+from app.crawlers.scheduler import compute_stats, run_enabled_sources, run_source, source_status
 
 
 def latest_official_events(
@@ -40,3 +40,11 @@ def official_source_status() -> list[dict[str, Any]]:
 
 def run_official_source(source_id: str, limit: int | None = None) -> dict[str, Any]:
     return run_source(source_id, limit=limit)
+
+
+def run_all_official_sources(limit: int | None = None) -> dict[str, Any]:
+    return run_enabled_sources(limit=limit)
+
+
+def official_event_stats() -> dict[str, Any]:
+    return compute_stats()

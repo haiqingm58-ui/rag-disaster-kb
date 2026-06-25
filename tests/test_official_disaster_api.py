@@ -4,6 +4,12 @@ from app_server.main import app
 from fastapi.testclient import TestClient
 
 
+def _auth_headers(client: TestClient) -> dict[str, str]:
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
 def test_geojson_output_format(tmp_path):
     store = DisasterEventStore(tmp_path / "events.sqlite3")
     store.upsert(
@@ -58,3 +64,57 @@ def test_geojson_api_returns_feature_collection(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["type"] == "FeatureCollection"
+
+
+def test_crawler_run_all_requires_admin():
+    response = TestClient(app).post("/api/crawler/run-all")
+
+    assert response.status_code == 401
+
+
+def test_crawler_run_all_reports_partial_when_source_errors(monkeypatch):
+    from app_server.api import crawler_admin
+
+    monkeypatch.setattr(
+        crawler_admin,
+        "run_all_official_sources",
+        lambda **kwargs: {
+            "finished_at": "2026-06-11 12:00:00",
+            "sources": [
+                {"source_id": "ok", "saved": 1, "new_events": 1, "errors": []},
+                {"source_id": "bad", "saved": 0, "new_events": 0, "errors": [{"error": "timeout"}]},
+            ],
+            "total_events": 1,
+            "new_events": 1,
+        },
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/crawler/run-all?limit=5", headers=_auth_headers(client))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "partial"
+    assert data["result"]["sources"][1]["source_id"] == "bad"
+
+
+def test_crawler_stats_returns_scheduler_stats(monkeypatch):
+    from app_server.api import crawler_admin
+
+    monkeypatch.setattr(
+        crawler_admin,
+        "official_event_stats",
+        lambda: {
+            "total_events": 2,
+            "by_source_id": {"hunan_water": 2},
+            "anomalies": [{"type": "empty_original_url", "count": 1}],
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/crawler/stats", headers=_auth_headers(client))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["stats"]["total_events"] == 2
+    assert data["stats"]["anomalies"][0]["type"] == "empty_original_url"
