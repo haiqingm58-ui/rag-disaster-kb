@@ -161,6 +161,9 @@ def _normalize_ddg_url(value: str) -> str:
 def search_web(question: str, limit: int = 3) -> list[dict[str, Any]]:
     if not settings.web_search_enabled:
         return []
+    tavily_results = _search_tavily(question, limit=limit)
+    if tavily_results:
+        return tavily_results
     firecrawl_results = _search_firecrawl(question, limit=limit)
     if firecrawl_results:
         return firecrawl_results
@@ -169,6 +172,24 @@ def search_web(question: str, limit: int = 3) -> list[dict[str, Any]]:
     if results:
         return results
     return _search_bing(query, limit=limit)
+
+
+def _search_tavily(question: str, limit: int) -> list[dict[str, Any]]:
+    try:
+        from app_server.services.tavily_service import TavilyError, search_tavily, tavily_configured
+    except Exception as exc:
+        logger.warning("tavily adapter unavailable: %s", exc)
+        return []
+    if not tavily_configured():
+        return []
+    try:
+        return _dedupe_results(
+            search_tavily(f"{question} 地质灾害 标准 风险 预警", limit=limit),
+            limit,
+        )
+    except TavilyError as exc:
+        logger.warning("tavily web search failed: %s", exc)
+        return []
 
 
 def _search_firecrawl(question: str, limit: int) -> list[dict[str, Any]]:
